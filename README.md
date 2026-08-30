@@ -40,6 +40,8 @@ python scripts/capture.py --backend mindvision --sdk-path G:\mindvision --label 
 
 使用 `--backend mindvision` 时请先关闭 MVDCP2，因为相机通常不能被两个程序同时占用。`--exposure-us` 会关闭自动曝光；当前实测 10 ms 可达约 30 FPS，但必须确认画面亮度充足。光线不足时，优先增强恒定照明，再谨慎增加曝光时间。空格保存、Esc 退出。每类建议先采集 150–300 张有效图，覆盖位置、旋转、光照、反光、遮挡、正反面和多物件。使用 CVAT、LabelImg 或 Roboflow 标注为 YOLO 检测格式，按 [data/README.md](G:\codex\codex-yolov26\data\README.md) 放置。请按“物件实例”而不是连续帧随机切分 train/val/test。
 
+最高分辨率画面会在预览窗口自动缩小至 1280 px 宽；这不影响按空格保存的原始 `5488×3672` 图片，也不会把 FPS 文字写进训练图片。可用 `--preview-width 1000` 再缩小预览。
+
 ```powershell
 python scripts/check_dataset.py --root data/dataset --classes 31
 ```

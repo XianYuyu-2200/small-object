@@ -11,6 +11,7 @@ import cv2
 
 from swallow_yolo.mindvision import MindVisionCamera
 from swallow_yolo.frame_rate import FrameRateMonitor
+from swallow_yolo.display import fit_for_display
 
 
 def main() -> None:
@@ -22,6 +23,7 @@ def main() -> None:
     parser.add_argument("--resolution-index", type=int, help="迈德威视 SDK 预设分辨率索引；先用 diagnose_mindvision.py 查看")
     parser.add_argument("--frame-speed-index", type=int, help="迈德威视帧速档位；2 对应 High")
     parser.add_argument("--exposure-us", type=float, help="手动曝光（微秒）；提供该值会关闭自动曝光")
+    parser.add_argument("--preview-width", type=int, default=1280, help="预览窗口最大宽度；不影响保存原图")
     parser.add_argument("--output", default="data/raw", help="原始图片目录")
     parser.add_argument("--width", type=int, help="采集宽度；须与标定/比赛分辨率一致")
     parser.add_argument("--height", type=int, help="采集高度；须与标定/比赛分辨率一致")
@@ -55,8 +57,9 @@ def main() -> None:
             if not ok:
                 raise RuntimeError("相机读取失败")
         monitor.record(time.monotonic())
-        cv2.putText(frame, f"{frame.shape[1]}x{frame.shape[0]}  FPS {monitor.fps:.2f}", (20, 35), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0, 255, 255), 2, cv2.LINE_AA)
-        cv2.imshow("capture", frame)
+        preview = fit_for_display(frame, args.preview_width)
+        cv2.putText(preview, f"{frame.shape[1]}x{frame.shape[0]}  FPS {monitor.fps:.2f}", (20, 35), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0, 255, 255), 2, cv2.LINE_AA)
+        cv2.imshow("capture", preview)
         key = cv2.waitKey(1) & 0xFF
         if key == 27:
             break
