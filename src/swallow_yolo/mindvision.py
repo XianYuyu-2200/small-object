@@ -6,6 +6,7 @@ import ctypes
 import importlib
 import os
 import sys
+import time
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -109,15 +110,24 @@ class MindVisionCamera:
         self.mvsdk.CameraPlay(self.handle)
 
     def read(self, timeout_ms: int = 2000) -> np.ndarray:
+        frame, _ = self.read_with_stage_timings(timeout_ms)
+        return frame
+
+    def read_with_stage_timings(self, timeout_ms: int = 2000) -> tuple[np.ndarray, dict[str, float]]:
         raw = None
         try:
+            started = time.perf_counter()
             raw, header = self.mvsdk.CameraGetImageBuffer(self.handle, timeout_ms)
+            acquired = time.perf_counter()
             self.mvsdk.CameraImageProcess(self.handle, raw, self.frame_buffer, header)
+            processed = time.perf_counter()
             byte_count = header.iWidth * header.iHeight * self.channels
             image = np.frombuffer(ctypes.string_at(self.frame_buffer, byte_count), dtype=np.uint8)
             if self.channels == 1:
-                return image.reshape((header.iHeight, header.iWidth)).copy()
-            return image.reshape((header.iHeight, header.iWidth, self.channels)).copy()
+                frame = image.reshape((header.iHeight, header.iWidth)).copy()
+            else:
+                frame = image.reshape((header.iHeight, header.iWidth, self.channels)).copy()
+            return frame, {"acquire": acquired - started, "process": processed - acquired, "copy": time.perf_counter() - processed}
         finally:
             if raw:
                 self.mvsdk.CameraReleaseImageBuffer(self.handle, raw)

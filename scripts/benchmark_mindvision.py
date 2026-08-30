@@ -7,7 +7,7 @@ import json
 import time
 
 from swallow_yolo.mindvision import MindVisionCamera
-from swallow_yolo.timing import summarize_durations
+from swallow_yolo.timing import summarize_durations, summarize_stages
 
 
 def main() -> None:
@@ -22,11 +22,14 @@ def main() -> None:
     with MindVisionCamera(args.sdk_path, args.camera, args.resolution_index) as camera:
         diagnostics = camera.diagnostics()
         durations = []
+        stages = {"acquire": [], "process": [], "copy": []}
         for _ in range(args.frames):
             started = time.perf_counter()
-            frame = camera.read(timeout_ms=5000)
+            frame, timings = camera.read_with_stage_timings(timeout_ms=5000)
             durations.append(time.perf_counter() - started)
-        print(json.dumps({"camera": camera.device_name, "actual_resolution": diagnostics["resolution"], "requested_resolution_index": args.resolution_index, "frame_shape": list(frame.shape), "sdk_read_and_process": summarize_durations(durations)}, ensure_ascii=False, indent=2))
+            for name, value in timings.items():
+                stages[name].append(value)
+        print(json.dumps({"camera": camera.device_name, "actual_resolution": diagnostics["resolution"], "requested_resolution_index": args.resolution_index, "frame_shape": list(frame.shape), "sdk_read_and_process": summarize_durations(durations), "stages": summarize_stages(stages)}, ensure_ascii=False, indent=2))
 
 
 if __name__ == "__main__":

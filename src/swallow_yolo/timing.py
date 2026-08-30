@@ -12,3 +12,7 @@ def summarize_durations(seconds: list[float]) -> dict[str, float | int | None]:
         "mean_ms": round(mean_seconds * 1000, 2),
         "fps": round(1 / mean_seconds, 2) if mean_seconds > 0 else 0.0,
     }
+
+
+def summarize_stages(stages: dict[str, list[float]]) -> dict[str, dict[str, float | int | None]]:
+    return {name: summarize_durations(durations) for name, durations in stages.items()}
