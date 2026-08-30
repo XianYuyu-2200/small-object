@@ -38,6 +38,8 @@ class FakeSdk:
     def CameraGetAeState(self, _): return 1
     def CameraGetExposureTime(self, _): return 12345.0
     def CameraGetExposureTimeRange(self, _): return (10.0, 1_000_000.0, 1.0)
+    def CameraGetAnalogGainX(self, _): return 4.0
+    def CameraGetAnalogGainXRange(self, _): return (1.0, 22.0, 0.125)
     def CameraGetFrameSpeed(self, _): return 2
 
 
@@ -48,6 +50,8 @@ def test_camera_diagnostics_exposes_current_capture_conditions():
     assert values["trigger_mode"] == 0
     assert values["auto_exposure"] is True
     assert values["exposure_us"] == 12345.0
+    assert values["analog_gain_x"] == 4.0
+    assert values["analog_gain_x_range"] == [1.0, 22.0, 0.125]
     assert values["resolution_range"] == "64x64..5488x3672"
     assert values["preset_resolutions"] == [
         {"index": 0, "description": "VGA", "output": "640x480", "fov": "640x480"},

@@ -54,6 +54,8 @@ def camera_diagnostics(mvsdk, handle: int, capability) -> dict[str, object]:
         "auto_exposure": bool(mvsdk.CameraGetAeState(handle)),
         "exposure_us": mvsdk.CameraGetExposureTime(handle),
         "exposure_range_us": [exposure_min, exposure_max, exposure_step],
+        "analog_gain_x": mvsdk.CameraGetAnalogGainX(handle),
+        "analog_gain_x_range": list(mvsdk.CameraGetAnalogGainXRange(handle)),
         "frame_speed_index": mvsdk.CameraGetFrameSpeed(handle),
         "resolution_range": f"{limits.iWidthMin}x{limits.iHeightMin}..{limits.iWidthMax}x{limits.iHeightMax}",
         "skip_mode_mask": limits.uSkipModeMask,
@@ -81,13 +83,15 @@ def resolution_by_index(capability, preset_index: int):
     raise IndexError(f"分辨率预设 {preset_index} 不存在；可用编号为 {available}")
 
 
-def configure_camera(mvsdk, handle: int, frame_speed_index: int | None = None, exposure_us: float | None = None) -> None:
+def configure_camera(mvsdk, handle: int, frame_speed_index: int | None = None, exposure_us: float | None = None, gain_x: float | None = None) -> None:
     """Apply explicit, reproducible acquisition settings."""
     if frame_speed_index is not None:
         mvsdk.CameraSetFrameSpeed(handle, frame_speed_index)
     if exposure_us is not None:
         mvsdk.CameraSetAeState(handle, False)
         mvsdk.CameraSetExposureTime(handle, exposure_us)
+    if gain_x is not None:
+        mvsdk.CameraSetAnalogGainX(handle, gain_x)
 
 
 class MindVisionCamera:
@@ -100,6 +104,7 @@ class MindVisionCamera:
         resolution_index: int | None = None,
         frame_speed_index: int | None = None,
         exposure_us: float | None = None,
+        gain_x: float | None = None,
     ):
         self.mvsdk = load_mvsdk(sdk_root)
         devices = self.mvsdk.CameraEnumerateDevice()
@@ -120,7 +125,7 @@ class MindVisionCamera:
         output_format = self.mvsdk.CAMERA_MEDIA_TYPE_MONO8 if self.channels == 1 else self.mvsdk.CAMERA_MEDIA_TYPE_BGR8
         self.mvsdk.CameraSetIspOutFormat(self.handle, output_format)
         self.mvsdk.CameraSetTriggerMode(self.handle, 0)
-        configure_camera(self.mvsdk, self.handle, frame_speed_index=frame_speed_index, exposure_us=exposure_us)
+        configure_camera(self.mvsdk, self.handle, frame_speed_index=frame_speed_index, exposure_us=exposure_us, gain_x=gain_x)
         max_width = self.capability.sResolutionRange.iWidthMax
         max_height = self.capability.sResolutionRange.iHeightMax
         self.frame_buffer = self.mvsdk.CameraAlignMalloc(max_width * max_height * self.channels, 16)

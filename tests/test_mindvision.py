@@ -40,3 +40,14 @@ def test_configure_camera_disables_auto_exposure_for_manual_exposure():
     configure_camera(FakeSdk(), 3, frame_speed_index=2, exposure_us=10_000)
 
     assert calls == [("speed", 3, 2), ("ae", 3, False), ("exposure", 3, 10_000)]
+
+
+def test_configure_camera_can_set_analog_gain_multiplier():
+    calls = []
+
+    class FakeSdk:
+        def CameraSetAnalogGainX(self, handle, value): calls.append((handle, value))
+
+    configure_camera(FakeSdk(), 3, gain_x=4.0)
+
+    assert calls == [(3, 4.0)]
