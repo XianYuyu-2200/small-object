@@ -1,0 +1,11 @@
+__pycache__/
+.pytest_cache/
+*.py[cod]
+.venv/
+data/raw/
+data/dataset/
+data/calibration/*.json
+data/calibration/*.jpg
+data/calibration/*.png
+runs/
+*.pt

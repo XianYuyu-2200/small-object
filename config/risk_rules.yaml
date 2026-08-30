@@ -1,0 +1,5 @@
+# Fill these values only after selecting and documenting the teaching standard.
+ingestible_max_mm: null
+buffer_mm: 2.0
+min_confidence: 0.70
+manual_review_labels: []
