@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import argparse
 import time
-from datetime import datetime
 from pathlib import Path
 
 import cv2
@@ -14,6 +13,7 @@ from swallow_yolo.mindvision import MindVisionCamera
 from swallow_yolo.frame_rate import FrameRateMonitor
 from swallow_yolo.display import fit_for_display
 from swallow_yolo.camera_profile import resolve_camera_profile
+from swallow_yolo.capture_naming import next_capture_path
 
 
 def main() -> None:
@@ -70,10 +70,11 @@ def main() -> None:
         if key == 27:
             break
         if key == ord(" "):
-            name = datetime.now().strftime("%Y%m%d_%H%M%S_%f") + ".jpg"
-            target = output / name
-            cv2.imwrite(str(target), frame)
-            print(target)
+            target = next_capture_path(output)
+            if cv2.imwrite(str(target), frame):
+                print(target)
+            else:
+                raise RuntimeError(f"图片保存失败：{target}")
     if cap is not None:
         cap.release()
     if mindvision is not None:
