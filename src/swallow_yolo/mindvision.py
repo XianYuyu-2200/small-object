@@ -41,10 +41,49 @@ def load_mvsdk(root: str | Path):
     return importlib.import_module("mvsdk")
 
 
+def camera_diagnostics(mvsdk, handle: int, capability) -> dict[str, object]:
+    """Read current SDK capture state without changing any camera setting."""
+    resolution = mvsdk.CameraGetImageResolution(handle)
+    limits = capability.sResolutionRange
+    exposure_min, exposure_max, exposure_step = mvsdk.CameraGetExposureTimeRange(handle)
+    return {
+        "resolution": f"{resolution.iWidth}x{resolution.iHeight}",
+        "resolution_description": resolution.GetDescription(),
+        "trigger_mode": mvsdk.CameraGetTriggerMode(handle),
+        "auto_exposure": bool(mvsdk.CameraGetAeState(handle)),
+        "exposure_us": mvsdk.CameraGetExposureTime(handle),
+        "exposure_range_us": [exposure_min, exposure_max, exposure_step],
+        "frame_speed_index": mvsdk.CameraGetFrameSpeed(handle),
+        "resolution_range": f"{limits.iWidthMin}x{limits.iHeightMin}..{limits.iWidthMax}x{limits.iHeightMax}",
+        "skip_mode_mask": limits.uSkipModeMask,
+        "bin_average_mode_mask": limits.uBinAverageModeMask,
+        "resample_mask": limits.uResampleMask,
+        "preset_resolutions": [
+            {
+                "index": int(capability.pImageSizeDesc[i].iIndex),
+                "description": capability.pImageSizeDesc[i].GetDescription(),
+                "output": f"{capability.pImageSizeDesc[i].iWidth}x{capability.pImageSizeDesc[i].iHeight}",
+                "fov": f"{capability.pImageSizeDesc[i].iWidthFOV}x{capability.pImageSizeDesc[i].iHeightFOV}",
+            }
+            for i in range(capability.iImageSizeDesc)
+        ],
+    }
+
+
+def resolution_by_index(capability, preset_index: int):
+    """Find a vendor resolution preset by its SDK index, not array position."""
+    for position in range(capability.iImageSizeDesc):
+        preset = capability.pImageSizeDesc[position]
+        if preset.iIndex == preset_index:
+            return preset
+    available = [capability.pImageSizeDesc[position].iIndex for position in range(capability.iImageSizeDesc)]
+    raise IndexError(f"分辨率预设 {preset_index} 不存在；可用编号为 {available}")
+
+
 class MindVisionCamera:
     """One MindVision camera, returning processed BGR NumPy frames."""
 
-    def __init__(self, sdk_root: str | Path, device_index: int = 0):
+    def __init__(self, sdk_root: str | Path, device_index: int = 0, resolution_index: int | None = None):
         self.mvsdk = load_mvsdk(sdk_root)
         devices = self.mvsdk.CameraEnumerateDevice()
         if not devices:
@@ -54,6 +93,12 @@ class MindVisionCamera:
         self.device_name = devices[device_index].GetFriendlyName()
         self.handle = self.mvsdk.CameraInit(devices[device_index], -1, -1)
         self.capability = self.mvsdk.CameraGetCapability(self.handle)
+        if resolution_index is not None:
+            try:
+                self.mvsdk.CameraSetImageResolution(self.handle, resolution_by_index(self.capability, resolution_index))
+            except Exception:
+                self.close()
+                raise
         self.channels = 1 if self.capability.sIspCapacity.bMonoSensor else 3
         output_format = self.mvsdk.CAMERA_MEDIA_TYPE_MONO8 if self.channels == 1 else self.mvsdk.CAMERA_MEDIA_TYPE_BGR8
         self.mvsdk.CameraSetIspOutFormat(self.handle, output_format)
@@ -84,6 +129,9 @@ class MindVisionCamera:
         if getattr(self, "frame_buffer", None):
             self.mvsdk.CameraAlignFree(self.frame_buffer)
             self.frame_buffer = None
+
+    def diagnostics(self) -> dict[str, object]:
+        return camera_diagnostics(self.mvsdk, self.handle, self.capability)
 
     def __enter__(self):
         return self
