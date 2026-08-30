@@ -8,30 +8,46 @@ from pathlib import Path
 
 import cv2
 
+from swallow_yolo.mindvision import MindVisionCamera
+
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="按空格键采集单类别原始图片；Esc 退出。")
     parser.add_argument("--label", required=True, help="与 config/classes.yaml 对应的稳定类别名")
-    parser.add_argument("--camera", type=int, default=0, help="OpenCV 视频设备编号")
+    parser.add_argument("--backend", choices=("opencv", "mindvision"), default="opencv")
+    parser.add_argument("--camera", type=int, default=0, help="所选后端中的设备编号")
+    parser.add_argument("--sdk-path", help="迈德威视 SDK 根目录，例如 G:\\mindvision；仅 mindvision 后端需要")
     parser.add_argument("--output", default="data/raw", help="原始图片目录")
     parser.add_argument("--width", type=int, help="采集宽度；须与标定/比赛分辨率一致")
     parser.add_argument("--height", type=int, help="采集高度；须与标定/比赛分辨率一致")
     args = parser.parse_args()
 
-    cap = cv2.VideoCapture(args.camera, cv2.CAP_DSHOW)
-    if args.width:
-        cap.set(cv2.CAP_PROP_FRAME_WIDTH, args.width)
-    if args.height:
-        cap.set(cv2.CAP_PROP_FRAME_HEIGHT, args.height)
-    if not cap.isOpened():
-        raise RuntimeError(f"无法打开相机设备 {args.camera}；请检查迈德威视驱动/SDK 或 OpenCV 设备编号")
     output = Path(args.output) / args.label
     output.mkdir(parents=True, exist_ok=True)
+    mindvision = None
+    cap = None
+    if args.backend == "mindvision":
+        if not args.sdk_path:
+            raise SystemExit("使用 --backend mindvision 时必须提供 --sdk-path G:\\mindvision")
+        mindvision = MindVisionCamera(args.sdk_path, args.camera)
+        print(f"已连接迈德威视相机：{mindvision.device_name}")
+        if args.width or args.height:
+            print("注意：MindVision 后端当前按相机现有分辨率采集；请在 MVDCP2/SDK 中固定分辨率，再执行采集。")
+    else:
+        cap = cv2.VideoCapture(args.camera, cv2.CAP_DSHOW)
+        if args.width:
+            cap.set(cv2.CAP_PROP_FRAME_WIDTH, args.width)
+        if args.height:
+            cap.set(cv2.CAP_PROP_FRAME_HEIGHT, args.height)
+        if not cap.isOpened():
+            raise RuntimeError(f"无法打开 OpenCV 相机设备 {args.camera}")
     print("空格：保存；Esc：退出。请覆盖位置、旋转、光照、遮挡与多物件场景。")
     while True:
-        ok, frame = cap.read()
-        if not ok:
-            raise RuntimeError("相机读取失败")
+        frame = mindvision.read() if mindvision else None
+        if cap is not None:
+            ok, frame = cap.read()
+            if not ok:
+                raise RuntimeError("相机读取失败")
         cv2.imshow("capture", frame)
         key = cv2.waitKey(1) & 0xFF
         if key == 27:
@@ -41,7 +57,10 @@ def main() -> None:
             target = output / name
             cv2.imwrite(str(target), frame)
             print(target)
-    cap.release()
+    if cap is not None:
+        cap.release()
+    if mindvision is not None:
+        mindvision.close()
     cv2.destroyAllWindows()
 
 

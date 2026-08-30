@@ -11,12 +11,16 @@ import yaml
 
 from swallow_yolo.calibration import load_calibration
 from swallow_yolo.geometry import estimate_size_mm
+from swallow_yolo.mindvision import MindVisionCamera
 from swallow_yolo.risk import RiskConfig, RiskInput, classify_risk
 
 
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--source", required=True, help="图片、视频或摄像头编号")
+    parser.add_argument("--backend", choices=("opencv", "mindvision"), default="opencv")
+    parser.add_argument("--sdk-path", help="迈德威视 SDK 根目录；mindvision 后端必填")
+    parser.add_argument("--model-max-edge", type=int, default=1280, help="模型输入最长边；测量仍使用原始标定坐标")
     parser.add_argument("--model", required=True)
     parser.add_argument("--calibration", default="data/calibration/calibration.json")
     parser.add_argument("--risk-rules", default="config/risk_rules.yaml")
@@ -42,27 +46,40 @@ def main() -> None:
     output = Path(args.output)
     output.mkdir(parents=True, exist_ok=True)
     source = int(args.source) if str(args.source).isdigit() else args.source
-    capture = cv2.VideoCapture(source) if isinstance(source, int) or Path(str(source)).suffix.lower() in {".mp4", ".avi", ".mov", ".mkv"} else None
+    mindvision = None
+    if args.backend == "mindvision":
+        if not args.sdk_path:
+            raise SystemExit("使用 --backend mindvision 时必须提供 --sdk-path G:\\mindvision")
+        mindvision = MindVisionCamera(args.sdk_path, int(args.source))
+        print(f"已连接迈德威视相机：{mindvision.device_name}")
+    capture = None if mindvision else (cv2.VideoCapture(source) if isinstance(source, int) or Path(str(source)).suffix.lower() in {".mp4", ".avi", ".mov", ".mkv"} else None)
     if capture is not None and not capture.isOpened():
         raise RuntimeError(f"无法打开输入源：{args.source}")
     image = None if capture else cv2.imread(str(source))
     if capture is None and image is None:
         raise RuntimeError(f"无法读取图片：{args.source}")
     while True:
-        ok, raw_frame = capture.read() if capture is not None else (image is not None, image)
+        ok, raw_frame = capture.read() if capture is not None else ((True, mindvision.read()) if mindvision else (image is not None, image))
         if not ok:
             break
         if not calibration.validate_frame(raw_frame):
             raise RuntimeError("输入分辨率与 calibration.json 不匹配")
         frame = calibration.undistort(raw_frame)
-        result = model.predict(source=frame, verbose=False)[0]
+        scale = min(1.0, args.model_max_edge / max(frame.shape[:2]))
+        model_frame = cv2.resize(frame, None, fx=scale, fy=scale, interpolation=cv2.INTER_AREA) if scale < 1 else frame
+        result = model.predict(source=model_frame, verbose=False)[0]
         records = []
         for box, confidence, class_id in zip(result.boxes.xyxy.tolist(), result.boxes.conf.tolist(), result.boxes.cls.tolist()):
-            width_mm, height_mm = estimate_size_mm(tuple(box), calibration.table_homography_px_to_mm)
+            full_box = tuple(value / scale for value in box)
+            width_mm, height_mm = estimate_size_mm(full_box, calibration.table_homography_px_to_mm)
             label = names.get(int(class_id), f"class_{int(class_id):02d}")
             triage = classify_risk(config, RiskInput(label, float(confidence), max(width_mm, height_mm), min(width_mm, height_mm)))
             records.append({"label": label, "confidence": float(confidence), "width_mm": width_mm, "height_mm": height_mm, "risk": triage.category, "reason": triage.reason})
         annotated = result.plot()
+        for record, box in zip(records, result.boxes.xyxy.tolist()):
+            x1, y1, _, _ = (int(value) for value in box)
+            text = f"{record['risk']}: {record['width_mm']:.1f}x{record['height_mm']:.1f}mm"
+            cv2.putText(annotated, text, (x1, max(20, y1 - 8)), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 255), 1, cv2.LINE_AA)
         cv2.imwrite(str(output / "latest.jpg"), annotated)
         (output / "latest.json").write_text(json.dumps(records, ensure_ascii=False, indent=2), encoding="utf-8")
         print(json.dumps(records, ensure_ascii=False))
@@ -73,6 +90,9 @@ def main() -> None:
             break
     if capture is not None:
         capture.release()
+        cv2.destroyAllWindows()
+    if mindvision is not None:
+        mindvision.close()
         cv2.destroyAllWindows()
 
 

@@ -35,10 +35,10 @@ python scripts/calibrate.py --images data/calibration/chessboard --pattern 9x6 -
 ## 3. 采集与标注
 
 ```powershell
-python scripts/capture.py --label class_00 --camera 0 --width 1920 --height 1080
+python scripts/capture.py --backend mindvision --sdk-path G:\mindvision --label 大方块 --camera 0
 ```
 
-空格保存、Esc 退出。每类建议先采集 150–300 张有效图，覆盖位置、旋转、光照、反光、遮挡、正反面和多物件。使用 CVAT、LabelImg 或 Roboflow 标注为 YOLO 检测格式，按 [data/README.md](G:\codex\codex-yolov26\data\README.md) 放置。请按“物件实例”而不是连续帧随机切分 train/val/test。
+使用 `--backend mindvision` 时请先关闭 MVDCP2，因为相机通常不能被两个程序同时占用。空格保存、Esc 退出。每类建议先采集 150–300 张有效图，覆盖位置、旋转、光照、反光、遮挡、正反面和多物件。使用 CVAT、LabelImg 或 Roboflow 标注为 YOLO 检测格式，按 [data/README.md](G:\codex\codex-yolov26\data\README.md) 放置。请按“物件实例”而不是连续帧随机切分 train/val/test。
 
 ```powershell
 python scripts/check_dataset.py --root data/dataset --classes 31
@@ -48,10 +48,10 @@ python scripts/check_dataset.py --root data/dataset --classes 31
 
 ```powershell
 python scripts/train.py --data config/dataset.yaml --classes config/classes.yaml --model yolo11n.pt --epochs 100 --imgsz 640 --device 0
-python scripts/infer.py --source 0 --model runs/detect/train/weights/best.pt --calibration data/calibration/calibration.json
+python scripts/infer.py --backend mindvision --sdk-path G:\mindvision --source 0 --model runs/detect/train/weights/best.pt --calibration data/calibration/calibration.json
 ```
 
-推理结果写至 `runs/inference/latest.jpg` 与 `runs/inference/latest.json`。Esc 退出实时画面。
+推理结果写至 `runs/inference/latest.jpg` 与 `runs/inference/latest.json`。为使 5488×3672 的相机画面能用于实时检测，YOLO 默认处理最长边 1280 px 的下采样图；检测框会按缩放比例映射回完整、去畸变且已标定的画面后再换算毫米。Esc 退出实时画面。
 
 ## 验证与限制
 
