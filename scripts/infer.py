@@ -12,18 +12,20 @@ import yaml
 from swallow_yolo.calibration import load_calibration
 from swallow_yolo.geometry import estimate_size_mm
 from swallow_yolo.mindvision import MindVisionCamera
+from swallow_yolo.camera_profile import resolve_camera_profile
 from swallow_yolo.risk import RiskConfig, RiskInput, classify_risk
 
 
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--source", required=True, help="图片、视频或摄像头编号")
-    parser.add_argument("--backend", choices=("opencv", "mindvision"), default="opencv")
+    parser.add_argument("--backend", choices=("opencv", "mindvision"))
     parser.add_argument("--sdk-path", help="迈德威视 SDK 根目录；mindvision 后端必填")
     parser.add_argument("--resolution-index", type=int, help="迈德威视 SDK 预设分辨率索引")
     parser.add_argument("--frame-speed-index", type=int, help="迈德威视帧速档位；2 对应 High")
     parser.add_argument("--exposure-us", type=float, help="手动曝光（微秒）；提供该值会关闭自动曝光")
     parser.add_argument("--gain-x", type=float, help="模拟增益倍数")
+    parser.add_argument("--profile", default="config/camera_profile.yaml", help="相机默认参数文件")
     parser.add_argument("--model-max-edge", type=int, default=1280, help="模型输入最长边；测量仍使用原始标定坐标")
     parser.add_argument("--model", required=True)
     parser.add_argument("--calibration", default="data/calibration/calibration.json")
@@ -31,6 +33,8 @@ def main() -> None:
     parser.add_argument("--classes", default="config/classes.yaml")
     parser.add_argument("--output", default="runs/inference")
     args = parser.parse_args()
+    profile = yaml.safe_load(Path(args.profile).read_text(encoding="utf-8")) if Path(args.profile).exists() else {}
+    camera_values = resolve_camera_profile(profile, vars(args))
     try:
         from ultralytics import YOLO
     except ImportError as error:
@@ -51,10 +55,10 @@ def main() -> None:
     output.mkdir(parents=True, exist_ok=True)
     source = int(args.source) if str(args.source).isdigit() else args.source
     mindvision = None
-    if args.backend == "mindvision":
-        if not args.sdk_path:
+    if camera_values["backend"] == "mindvision":
+        if not camera_values["sdk_path"]:
             raise SystemExit("使用 --backend mindvision 时必须提供 --sdk-path G:\\mindvision")
-        mindvision = MindVisionCamera(args.sdk_path, int(args.source), args.resolution_index, args.frame_speed_index, args.exposure_us, args.gain_x)
+        mindvision = MindVisionCamera(camera_values["sdk_path"], int(args.source), camera_values["resolution_index"], camera_values["frame_speed_index"], camera_values["exposure_us"], camera_values["gain_x"])
         print(f"已连接迈德威视相机：{mindvision.device_name}")
     capture = None if mindvision else (cv2.VideoCapture(source) if isinstance(source, int) or Path(str(source)).suffix.lower() in {".mp4", ".avi", ".mov", ".mkv"} else None)
     if capture is not None and not capture.isOpened():
