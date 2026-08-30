@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 import argparse
+import time
 from datetime import datetime
 from pathlib import Path
 
 import cv2
 
 from swallow_yolo.mindvision import MindVisionCamera
+from swallow_yolo.frame_rate import FrameRateMonitor
 
 
 def main() -> None:
@@ -26,6 +28,7 @@ def main() -> None:
     output.mkdir(parents=True, exist_ok=True)
     mindvision = None
     cap = None
+    monitor = FrameRateMonitor(time.monotonic())
     if args.backend == "mindvision":
         if not args.sdk_path:
             raise SystemExit("使用 --backend mindvision 时必须提供 --sdk-path G:\\mindvision")
@@ -48,6 +51,8 @@ def main() -> None:
             ok, frame = cap.read()
             if not ok:
                 raise RuntimeError("相机读取失败")
+        monitor.record(time.monotonic())
+        cv2.putText(frame, f"{frame.shape[1]}x{frame.shape[0]}  FPS {monitor.fps:.2f}", (20, 35), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0, 255, 255), 2, cv2.LINE_AA)
         cv2.imshow("capture", frame)
         key = cv2.waitKey(1) & 0xFF
         if key == 27:
