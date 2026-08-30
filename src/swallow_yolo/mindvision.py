@@ -81,10 +81,26 @@ def resolution_by_index(capability, preset_index: int):
     raise IndexError(f"分辨率预设 {preset_index} 不存在；可用编号为 {available}")
 
 
+def configure_camera(mvsdk, handle: int, frame_speed_index: int | None = None, exposure_us: float | None = None) -> None:
+    """Apply explicit, reproducible acquisition settings."""
+    if frame_speed_index is not None:
+        mvsdk.CameraSetFrameSpeed(handle, frame_speed_index)
+    if exposure_us is not None:
+        mvsdk.CameraSetAeState(handle, False)
+        mvsdk.CameraSetExposureTime(handle, exposure_us)
+
+
 class MindVisionCamera:
     """One MindVision camera, returning processed BGR NumPy frames."""
 
-    def __init__(self, sdk_root: str | Path, device_index: int = 0, resolution_index: int | None = None):
+    def __init__(
+        self,
+        sdk_root: str | Path,
+        device_index: int = 0,
+        resolution_index: int | None = None,
+        frame_speed_index: int | None = None,
+        exposure_us: float | None = None,
+    ):
         self.mvsdk = load_mvsdk(sdk_root)
         devices = self.mvsdk.CameraEnumerateDevice()
         if not devices:
@@ -104,6 +120,7 @@ class MindVisionCamera:
         output_format = self.mvsdk.CAMERA_MEDIA_TYPE_MONO8 if self.channels == 1 else self.mvsdk.CAMERA_MEDIA_TYPE_BGR8
         self.mvsdk.CameraSetIspOutFormat(self.handle, output_format)
         self.mvsdk.CameraSetTriggerMode(self.handle, 0)
+        configure_camera(self.mvsdk, self.handle, frame_speed_index=frame_speed_index, exposure_us=exposure_us)
         max_width = self.capability.sResolutionRange.iWidthMax
         max_height = self.capability.sResolutionRange.iHeightMax
         self.frame_buffer = self.mvsdk.CameraAlignMalloc(max_width * max_height * self.channels, 16)

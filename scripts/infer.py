@@ -20,6 +20,9 @@ def main() -> None:
     parser.add_argument("--source", required=True, help="图片、视频或摄像头编号")
     parser.add_argument("--backend", choices=("opencv", "mindvision"), default="opencv")
     parser.add_argument("--sdk-path", help="迈德威视 SDK 根目录；mindvision 后端必填")
+    parser.add_argument("--resolution-index", type=int, help="迈德威视 SDK 预设分辨率索引")
+    parser.add_argument("--frame-speed-index", type=int, help="迈德威视帧速档位；2 对应 High")
+    parser.add_argument("--exposure-us", type=float, help="手动曝光（微秒）；提供该值会关闭自动曝光")
     parser.add_argument("--model-max-edge", type=int, default=1280, help="模型输入最长边；测量仍使用原始标定坐标")
     parser.add_argument("--model", required=True)
     parser.add_argument("--calibration", default="data/calibration/calibration.json")
@@ -50,7 +53,7 @@ def main() -> None:
     if args.backend == "mindvision":
         if not args.sdk_path:
             raise SystemExit("使用 --backend mindvision 时必须提供 --sdk-path G:\\mindvision")
-        mindvision = MindVisionCamera(args.sdk_path, int(args.source))
+        mindvision = MindVisionCamera(args.sdk_path, int(args.source), args.resolution_index, args.frame_speed_index, args.exposure_us)
         print(f"已连接迈德威视相机：{mindvision.device_name}")
     capture = None if mindvision else (cv2.VideoCapture(source) if isinstance(source, int) or Path(str(source)).suffix.lower() in {".mp4", ".avi", ".mov", ".mkv"} else None)
     if capture is not None and not capture.isOpened():

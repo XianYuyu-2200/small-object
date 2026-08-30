@@ -20,6 +20,8 @@ def main() -> None:
     parser.add_argument("--camera", type=int, default=0, help="所选后端中的设备编号")
     parser.add_argument("--sdk-path", help="迈德威视 SDK 根目录，例如 G:\\mindvision；仅 mindvision 后端需要")
     parser.add_argument("--resolution-index", type=int, help="迈德威视 SDK 预设分辨率索引；先用 diagnose_mindvision.py 查看")
+    parser.add_argument("--frame-speed-index", type=int, help="迈德威视帧速档位；2 对应 High")
+    parser.add_argument("--exposure-us", type=float, help="手动曝光（微秒）；提供该值会关闭自动曝光")
     parser.add_argument("--output", default="data/raw", help="原始图片目录")
     parser.add_argument("--width", type=int, help="采集宽度；须与标定/比赛分辨率一致")
     parser.add_argument("--height", type=int, help="采集高度；须与标定/比赛分辨率一致")
@@ -33,7 +35,7 @@ def main() -> None:
     if args.backend == "mindvision":
         if not args.sdk_path:
             raise SystemExit("使用 --backend mindvision 时必须提供 --sdk-path G:\\mindvision")
-        mindvision = MindVisionCamera(args.sdk_path, args.camera, args.resolution_index)
+        mindvision = MindVisionCamera(args.sdk_path, args.camera, args.resolution_index, args.frame_speed_index, args.exposure_us)
         print(f"已连接迈德威视相机：{mindvision.device_name}")
         if args.width or args.height:
             print("注意：MindVision 后端当前按相机现有分辨率采集；请在 MVDCP2/SDK 中固定分辨率，再执行采集。")
