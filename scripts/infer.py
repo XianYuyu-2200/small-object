@@ -30,7 +30,7 @@ def main() -> None:
     parser.add_argument("--model", required=True)
     parser.add_argument("--calibration", default="data/calibration/calibration.json")
     parser.add_argument("--risk-rules", default="config/risk_rules.yaml")
-    parser.add_argument("--classes", default="config/classes.yaml")
+    parser.add_argument("--classes", help="可选外部类别映射；默认使用 best.pt 内置类别")
     parser.add_argument("--output", default="runs/inference")
     args = parser.parse_args()
     profile = yaml.safe_load(Path(args.profile).read_text(encoding="utf-8")) if Path(args.profile).exists() else {}
@@ -42,8 +42,6 @@ def main() -> None:
 
     calibration = load_calibration(args.calibration)
     rules = yaml.safe_load(Path(args.risk_rules).read_text(encoding="utf-8"))
-    class_data = yaml.safe_load(Path(args.classes).read_text(encoding="utf-8"))
-    names = {int(key): value for key, value in class_data["names"].items()}
     config = RiskConfig(
         ingestible_max_mm=rules.get("ingestible_max_mm"),
         buffer_mm=float(rules.get("buffer_mm", 0)),
@@ -51,6 +49,10 @@ def main() -> None:
         manual_review_labels=frozenset(rules.get("manual_review_labels", [])),
     )
     model = YOLO(args.model)
+    names = {int(key): value for key, value in model.names.items()} if isinstance(model.names, dict) else dict(enumerate(model.names))
+    if args.classes:
+        class_data = yaml.safe_load(Path(args.classes).read_text(encoding="utf-8"))
+        names = {int(key): value for key, value in class_data["names"].items()}
     output = Path(args.output)
     output.mkdir(parents=True, exist_ok=True)
     source = int(args.source) if str(args.source).isdigit() else args.source

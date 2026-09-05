@@ -50,10 +50,10 @@ python scripts/check_dataset.py --root data/dataset --classes 31
 
 ```powershell
 python scripts/train.py --data config/dataset.yaml --classes config/classes.yaml --model yolo11n.pt --epochs 100 --imgsz 640 --device 0
-python scripts/infer.py --backend mindvision --sdk-path G:\mindvision --source 0 --resolution-index 7 --frame-speed-index 2 --exposure-us 40000 --gain-x 4 --model runs/detect/train/weights/best.pt --calibration data/calibration/calibration.json
+python scripts/infer.py --backend mindvision --sdk-path G:\mindvision --source 0 --resolution-index 0 --frame-speed-index 2 --exposure-us 90000 --gain-x 3 --model weight/yolo11n-seg-1280/best.pt --calibration data/calibration/calibration.json
 ```
 
-推理结果写至 `runs/inference/latest.jpg` 与 `runs/inference/latest.json`。为使 5488×3672 的相机画面能用于实时检测，YOLO 默认处理最长边 1280 px 的下采样图；检测框会按缩放比例映射回完整、去畸变且已标定的画面后再换算毫米。Esc 退出实时画面。
+推理结果写至 `runs/inference/latest.jpg` 与 `runs/inference/latest.json`。默认使用权重内部的类别名称；不要传入与训练集不一致的 `--classes`。为使 5488×3672 的相机画面能用于实时检测，YOLO 默认处理最长边 1280 px 的下采样图；检测框会按缩放比例映射回完整、去畸变且已标定的画面后再换算毫米。Esc 退出实时画面。
 
 ## 验证与限制
 
