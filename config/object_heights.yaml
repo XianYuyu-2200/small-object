@@ -1,0 +1,50 @@
+# 视差修正配置。台面单应矩阵只对贴在台面(z=0)上的平面有效；
+# 有高度的物体，其顶面和侧壁会以相机天底点为中心被向外“放大”，
+# 离画面中心越远，测得的尺寸越大。infer.py 用这里的高度把轮廓还原成真实底面。
+
+# 相机光心到台面的垂直距离（毫米），必须用尺实测；不要沿用标定推出的焦距换算值。
+camera_height_mm: 328.0
+
+# 可选：天底点（相机正下方那一点）的像素坐标 [x, y]。留空则用标定主点近似。
+nadir_px: null
+
+# 每个类别的物体高度（毫米），键必须与 best.pt 内置类别名一致。
+# 修正模型假设物体是“直立棱柱”（侧面竖直、顶面平），用卡尺量物体放在台面上时的高度。
+# 填 null 表示未知：不做修正，并且当 risk_rules.yaml 里 require_object_height 为 true 时输出“无法判断”。
+# 球类不能用该模型，请保留在 risk_rules.yaml 的 manual_review_labels 中。
+heights_mm:
+  Clownfish: null
+  baby bottle: null
+  bean: null
+  block: null
+  blue ball: null
+  building block6: null
+  button: null
+  claw: null
+  coin: null
+  cotton swab: null
+  doll: null
+  green block: null
+  greenblock: null
+  jump ball: null
+  object-detection: null
+  orange block: null
+  part: null
+  pellet: null
+  pink block: null
+  puzzle: null
+  puzzle2: null
+  red ball: null
+  red line: null
+  rubber band: null
+  screw: null
+  silver: null
+  squelch: null
+  sweet: null
+  tip: null
+  turtle: null
+  white ball: null
+  white duck: null
+  white paper: null
+  yellow ball: null
+  yellow duck: null

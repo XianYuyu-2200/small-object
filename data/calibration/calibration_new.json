@@ -1,0 +1,58 @@
+{
+  "image_size": [
+    5488,
+    3672
+  ],
+  "camera_matrix": [
+    [
+      5405.8475436883355,
+      0.0,
+      2755.6025673852014
+    ],
+    [
+      0.0,
+      5406.55666967407,
+      1831.9735972636868
+    ],
+    [
+      0.0,
+      0.0,
+      1.0
+    ]
+  ],
+  "distortion_coefficients": [
+    -0.07099601189112052,
+    0.17878628616184525,
+    7.256241558577192e-05,
+    0.0011942193573379145,
+    -0.06635027183886688
+  ],
+  "table_homography_px_to_mm": [
+    [
+      -0.0004889157987418751,
+      0.06944647455685979,
+      -120.4729462891504
+    ],
+    [
+      -0.06945020136781219,
+      -0.0005077318029494666,
+      199.41386958405073
+    ],
+    [
+      3.5380541862986567e-06,
+      -2.6501752430797885e-06,
+      1.0
+    ]
+  ],
+  "reprojection_error_px": 0.10920782008384233,
+  "metadata": {
+    "camera_model": "MV-SUA2000C-TV1-C",
+    "pattern": "7x10",
+    "square_mm": 15.0,
+    "created_at": "2026-09-14T13:59:51.450979+00:00",
+    "camera_height_mm": 400.0,
+    "chessboard_tilt_deg_max": 1.44,
+    "mapping_note": "metric table-plane mapping estimated from 34 coplanar chessboard views",
+    "note": "Valid only for unchanged camera, lens focus, resolution, mount and table plane."
+  }
+}

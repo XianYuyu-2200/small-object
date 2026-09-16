@@ -5,7 +5,7 @@ from __future__ import annotations
 
 DEFAULT_CAMERA_PROFILE = {
     "backend": "mindvision",
-    "sdk_path": r"G:\mindvision",
+    "sdk_path": "mindvision",
     "camera": 0,
     "resolution_index": 0,
     "frame_speed_index": 2,

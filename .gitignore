@@ -3,10 +3,34 @@ __pycache__/
 *.py[cod]
 *.egg-info/
 .venv/
+
+# datasets and captured calibration photos
 data/raw/
 data/dataset/
 data/calibration/*.json
+!data/calibration/calibration_new.json
 data/calibration/*.jpg
 data/calibration/*.png
+data/calibration/chessboard/
+data/calibration/chessboard_new/
+data/calibration/table_reference/
+
+# runtime output
 runs/
+output/
+
+# build artifacts / packaged releases
+build/
+build_fix/
+build_fix2/
+dist/
+dist_fix/
+dist_fix2/
+release/
+*.zip
+
+# model weights
 *.pt
+
+# secrets: contains the API key, never commit
+config/vlm.yaml

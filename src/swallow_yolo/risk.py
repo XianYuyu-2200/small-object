@@ -13,6 +13,8 @@ class RiskConfig:
     buffer_mm: float = 0.0
     min_confidence: float = 0.70
     manual_review_labels: frozenset[str] = field(default_factory=frozenset)
+    measure_zone_radius_mm: float | None = None
+    require_object_height: bool = False
 
 
 @dataclass(frozen=True)
@@ -25,6 +27,8 @@ class RiskInput:
     touches_frame: bool = False
     occluded_or_stacked: bool = False
     flat_on_table: bool = True
+    object_height_known: bool = True
+    distance_from_nadir_mm: float | None = None
 
 
 @dataclass(frozen=True)
@@ -58,6 +62,13 @@ def classify_risk(config: RiskConfig, item: RiskInput) -> RiskResult:
         return _unknown("物件未平贴台面，二维尺寸不可靠")
     if item.label in config.manual_review_labels:
         return _unknown("该类别要求人工复核")
+    if config.require_object_height and not item.object_height_known:
+        return _unknown("未配置该类别的物体高度，无法做视差修正")
+    if config.measure_zone_radius_mm is not None:
+        if item.distance_from_nadir_mm is None:
+            return _unknown("缺少物体到天底点的距离")
+        if item.distance_from_nadir_mm > config.measure_zone_radius_mm:
+            return _unknown("物件离画面中心过远，请移到测量区域内")
     if item.length_mm is None or item.width_mm is None:
         return _unknown("缺少平面尺寸")
     if item.length_mm <= 0 or item.width_mm <= 0:

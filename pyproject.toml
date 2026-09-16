@@ -5,12 +5,13 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "swallow-yolo"
 version = "0.1.0"
-description = "Fixed-camera YOLO demonstration for small-object swallowing-risk assistance"
+description = "Fixed-camera multimodal API console for small-object swallowing-risk assistance"
 requires-python = ">=3.10"
-dependencies = ["numpy>=1.24", "opencv-python>=4.8", "Pillow>=10.0", "PyYAML>=6.0"]
+dependencies = ["numpy>=1.24", "opencv-python>=4.8", "Pillow>=10.0", "PyYAML>=6.0", "requests>=2.31"]
 
 [project.optional-dependencies]
 yolo = ["ultralytics>=8.3"]
+app = ["pyinstaller>=6.0"]
 dev = ["pytest>=8.0"]
 
 [tool.pytest.ini_options]

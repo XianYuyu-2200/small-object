@@ -1,64 +1,105 @@
-# 小物件吞咽风险识别演示（YOLO）
+# 小物件吞咽识别控制台（相机 + 多模态 API）
 
-面向教学比赛的固定俯视相机演示工程：检测约 31 类小物件，利用赛前离线标定把检测框的平面投影换算为毫米，并以可审计的规则输出 `易误食`、`不易误食` 或 `无法判断`。
+比赛演示版桌面程序：迈德威视相机实时预览，手动拍照后调用兼容 OpenAI Chat Completions 协议的多模态 API，并将分析结果以 JSON 展示。
 
-> 这不是儿童产品安全认证、医疗建议或合规判定。单目二维图像无法可靠判断厚度、可拆卸性、球体/倾斜摆放等三维风险；这些情形必须人工复核或输出“无法判断”。
+当前 EXE 主流程不加载 YOLO，也不需要识别目标类别。
 
-## 先决条件
+## 操作流程
 
-- Python 3.10+。
-- 已安装迈德威视相机驱动；该相机能作为 OpenCV 视频设备使用，或按其 SDK 将画面桥接为 OpenCV 帧。
-- 赛前固定相机高度（约 32.8 cm）、俯角、焦距、对焦、分辨率与台面位置。比赛期间不显示任何标尺/ArUco。
+1. 启动程序，点击“开始相机”。
+2. 把目标物放在实验台上，确认实时画面清晰。
+3. 点击“手动拍照”，原图保存到 `runs/captures/`。
+4. 点击“开始分析”，后台线程调用多模态 API。
+5. 界面显示“容易吞咽”“不容易吞咽”或“无法判断”，下方展示完整 JSON。
+6. JSON 保存到 `runs/analysis/latest.json`。
+
+分析期间不会阻塞相机和界面；同一张照片可以重复分析。
+
+## 配置 API
+
+编辑 `config/vlm.yaml`：
+
+```yaml
+endpoint: "https://your-provider.example/v1/chat/completions"
+model: "your-vision-model"
+api_key_env: "VLM_API_KEY"
+api_key: ""
+timeout_seconds: 90
+max_image_edge: 1280
+jpeg_quality: 88
+```
+
+要求：
+
+- `endpoint` 必须是可直接 POST 的完整 Chat Completions 地址。
+- `model` 必须是支持图片输入的多模态模型。
+- API Key 优先读取 `api_key_env` 指定的环境变量；没有环境变量时使用 `api_key`。
+- 不要把包含真实 API Key 的 `config/vlm.yaml` 提交或发给他人。
+- 如果服务需要额外请求头，可填写 `extra_headers`。
+
+设置环境变量的示例：
+
+```powershell
+$env:VLM_API_KEY = "your-api-key"
+```
+
+## 运行源码
 
 ```powershell
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
-pip install -e ".[dev,yolo]"
+pip install -e ".[dev]"
+python scripts\app.py
 ```
 
-## 1. 维护类别和风险规则
+API 客户端使用 Python 标准库 `urllib`，不依赖特定厂商 SDK。
 
-先把 [config/classes.yaml](G:\codex\codex-yolov26\config\classes.yaml) 的 31 个占位名改为真实物件名称。开始标注后，**不要改变已有编号**。
-
-[config/risk_rules.yaml](G:\codex\codex-yolov26\config\risk_rules.yaml) 的 `ingestible_max_mm` 默认是 `null`；未填入且未记录教学标准来源时，推理将只输出“无法判断”。不要用未经核实的网络阈值替代课程要求。
-
-## 2. 赛前离线标定
-
-在最终装配状态下拍摄至少 10 张棋盘格照片（不同位置、角度、清晰），另拍一张棋盘格平放于最终台面的参考图：
+## 构建 EXE
 
 ```powershell
-python scripts/calibrate.py --images data/calibration/chessboard --pattern 9x6 --square-mm 20 --table-reference data/calibration/table_reference.jpg
+.\build_exe.ps1
 ```
 
-这将生成 `data/calibration/calibration.json`。棋盘格随后撤走；比赛现场无须出现标记。相机、分辨率、焦距、对焦、支架或台面有变化时重新标定。
+生成位置：
 
-## 3. 采集与标注
-
-```powershell
-python scripts/capture.py --backend mindvision --sdk-path G:\mindvision --label 大方块 --camera 0 --resolution-index 7 --frame-speed-index 2 --exposure-us 40000 --gain-x 4
+```text
+dist\SwallowabilityConsole\SwallowabilityConsole.exe
 ```
 
-使用 `--backend mindvision` 时请先关闭 MVDCP2，因为相机通常不能被两个程序同时占用。`--exposure-us` 会关闭自动曝光；`--gain-x` 设置模拟增益。本机实测增益范围为 1×–22×，建议从 2×、4×、6×逐级测试，优先补光而不是直接拉满。空格保存一张，文件名从 `1.jpg` 开始递增，已有图片不会被覆盖；Esc 退出。每类建议先采集 150–300 张有效图，覆盖位置、旋转、光照、反光、遮挡、正反面和多物件。使用 CVAT、LabelImg 或 Roboflow 标注为 YOLO 检测格式，按 [data/README.md](G:\codex\codex-yolov26\data\README.md) 放置。请按“物件实例”而不是连续帧随机切分 train/val/test。
+打包脚本会把 `config` 复制到 EXE 同级目录。之后可直接编辑：
 
-最高分辨率画面会在预览窗口自动缩小至 1280 px 宽；这不影响按空格保存的原始 `5488×3672` 图片，也不会把 FPS 文字写进训练图片。可用 `--preview-width 1000` 再缩小预览。
+- `config/camera_profile.yaml`：相机、曝光、分辨率和预览宽度。
+- `config/vlm.yaml`：API 地址、模型和密钥。
 
-```powershell
-python scripts/check_dataset.py --root data/dataset --classes 31
+## API 返回格式
+
+程序提示模型只返回以下 JSON：
+
+```json
+{
+  "object_name": "红色小方块",
+  "decision": "可能吞咽",
+  "confidence": 0.82,
+  "reasons": [
+    "目标整体尺寸较小",
+    "外形接近规则块体"
+  ]
+}
 ```
 
-## 4. 训练与演示
+界面只显示简短物件名称、尺寸、置信度和五级吞咽等级，不展示 JSON 内容。`decision` 只接受：
 
-```powershell
-python scripts/train.py --data config/dataset.yaml --classes config/classes.yaml --model yolo11n.pt --epochs 100 --imgsz 640 --device 0
-python scripts/infer.py --backend mindvision --sdk-path G:\mindvision --source 0 --resolution-index 0 --frame-speed-index 2 --exposure-us 90000 --gain-x 3 --model weight/yolo11n-seg-1280/best.pt --calibration data/calibration/calibration.json
-```
+- `无法吞咽`
+- `不容易吞咽`
+- `可能吞咽`
+- `容易吞咽`
+- `极易吞咽`
 
-推理结果写至 `runs/inference/latest.jpg` 与 `runs/inference/latest.json`。默认使用权重内部的类别名称；不要传入与训练集不一致的 `--classes`。为使 5488×3672 的相机画面能用于实时检测，YOLO 默认处理最长边 1280 px 的下采样图；检测框会按缩放比例映射回完整、去畸变且已标定的画面后再换算毫米。Esc 退出实时画面。
+如果 API 返回 Markdown 代码块、百分比置信度或常见同义措辞，程序也会尽量解析；格式无法解析时会在界面和 `runs/analysis_error.log` 中报告错误。
 
-## 验证与限制
+## 注意事项
 
-```powershell
-python -m pytest tests -q
-```
-
-在独立于训练数据的实物上、台面多个位置测量并记录误差。接近阈值、低置信度、遮挡、叠放、贴边、未平贴台面或三维形状不可靠时，系统应返回“无法判断”，不要在教学比赛中夸大其尺寸精度或安全结论。
+- 固定相机高度、视角和拍照位置可提高同一实验台内结果的一致性。
+- 单张俯视图缺少尺度参照，API 无法知道目标真实毫米尺寸；多个相近大小目标的判断可能不稳定。
+- 当前程序用于比赛演示，不适合作为医疗或产品安全结论。
+- 历史 YOLO 训练和命令行推理代码仍保留在项目中，但新的桌面 EXE 不再使用它们。

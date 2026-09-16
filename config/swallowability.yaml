@@ -1,0 +1,40 @@
+# 类别名必须与 best.pt 内置的 model.names 完全一致。
+min_confidence: 0.70
+swallowable:
+  Clownfish: false
+  baby bottle: false
+  bean: true
+  block: true
+  blue ball: true
+  building block6: true
+  button: true
+  claw: true
+  coin: true
+  cotton swab: true
+  doll: true
+  green block: true
+  greenblock: true
+  jump ball: true
+  orange block: false
+  object-detection: false
+  part: true
+  pellet: true
+  pink block: true
+  puzzle: false
+  puzzle2: false
+  red ball: false
+  red line: true
+  rubber band: true
+  screw: true
+  silver: true
+  squelch: false
+  sweet: true
+  tip: true
+  turtle: false
+  white ball: true
+  white duck: true
+  white paper: false
+  yellow ball: true
+  yellow duck: true
+
+# object-detection 是模型中的占位/异常类别，当前暂按 false 处理，请确认。

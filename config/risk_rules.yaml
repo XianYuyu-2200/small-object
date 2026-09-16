@@ -2,4 +2,18 @@
 ingestible_max_mm: null
 buffer_mm: 2.0
 min_confidence: 0.70
-manual_review_labels: []
+
+# 只在物体底面中心距天底点不超过该半径（毫米）时给出结论；越靠边视差残差越大。
+# 填 null 表示不限制。
+measure_zone_radius_mm: 120.0
+
+# 为 true 时，config/object_heights.yaml 中高度为 null 的类别一律输出“无法判断”。
+require_object_height: true
+
+# 球体、倾斜或非棱柱形物件不能用二维投影判断，交人工复核。
+manual_review_labels:
+  - blue ball
+  - jump ball
+  - red ball
+  - white ball
+  - yellow ball
