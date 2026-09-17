@@ -34,3 +34,7 @@ release/
 
 # secrets: contains the API key, never commit
 config/vlm.yaml
+
+build_capture/
+dist_capture/
+dataset/
