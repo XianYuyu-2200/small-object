@@ -1,4 +1,4 @@
-#Requires -Version 5.1
+﻿#Requires -Version 5.1
 [CmdletBinding()]
 param(
     [switch]$NoLaunch,
@@ -139,7 +139,6 @@ function Main {
     foreach ($required in @(
         (Join-Path $appDir '_internal\base_library.zip'),
         (Join-Path $appDir 'config\camera_profile.yaml'),
-        (Join-Path $appDir 'config\capture_classes.txt'),
         (Join-Path $appDir 'mindvision\Demo\Python\Basic\mvsdk.py'),
         (Join-Path $appDir 'mindvision\SDK\X64\MVCAMSDK_X64.dll')
     )) {

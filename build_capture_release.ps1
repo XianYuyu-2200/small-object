@@ -1,4 +1,4 @@
-[CmdletBinding()]
+﻿[CmdletBinding()]
 param(
     [string]$MindVisionRoot = 'G:\mindvision',
     [string]$OutputRoot = '',
@@ -65,7 +65,6 @@ if (-not $SkipBuild) {
 Assert-RequiredFile (Join-Path $DistRoot 'DatasetCapture.exe')
 Assert-RequiredFile (Join-Path $DistRoot '_internal\base_library.zip')
 Assert-RequiredFile (Join-Path $DistRoot 'config\camera_profile.yaml')
-Assert-RequiredFile (Join-Path $DistRoot 'config\capture_classes.txt')
 
 # 安全检查：采集工具包里绝不能出现分析服务的密钥配置
 $leaks = @(Get-ChildItem -LiteralPath $DistRoot -Recurse -File -Filter 'vlm.yaml' -ErrorAction SilentlyContinue)
@@ -97,7 +96,7 @@ if (Test-Path -LiteralPath $ReleaseRoot) {
 New-Item -ItemType Directory -Force -Path $ReleaseRoot | Out-Null
 $AppTarget = Join-Path $ReleaseRoot 'DatasetCapture'
 
-Write-Host '[2/6] 复制采集程序、相机参数和类别列表...'
+Write-Host '[2/6] 复制采集程序与相机参数...'
 Copy-Tree -Source $DistRoot -Destination $AppTarget
 if (-not (Test-Path -LiteralPath (Join-Path $AppTarget 'dataset'))) {
     New-Item -ItemType Directory -Force -Path (Join-Path $AppTarget 'dataset') | Out-Null
@@ -124,7 +123,6 @@ Copy-Tree -Source (Join-Path $ProjectRoot 'README_采集工具说明.txt') -Dest
 Write-Host '[5/6] 校验发布文件...'
 Assert-RequiredFile (Join-Path $AppTarget 'DatasetCapture.exe')
 Assert-RequiredFile (Join-Path $AppTarget 'config\camera_profile.yaml')
-Assert-RequiredFile (Join-Path $AppTarget 'config\capture_classes.txt')
 Assert-RequiredFile (Join-Path $AppTarget 'mindvision\Demo\Python\Basic\mvsdk.py')
 Assert-RequiredFile (Join-Path $AppTarget 'mindvision\SDK\X64\MVCAMSDK_X64.dll')
 Assert-RequiredFile (Join-Path $ReleaseRoot 'install_dataset.bat')
@@ -139,7 +137,6 @@ $manifest = @()
 foreach ($relative in @(
     'DatasetCapture\DatasetCapture.exe',
     'DatasetCapture\config\camera_profile.yaml',
-    'DatasetCapture\config\capture_classes.txt',
     'DatasetCapture\mindvision\Demo\Python\Basic\mvsdk.py',
     'DatasetCapture\mindvision\SDK\X64\MVCAMSDK_X64.dll',
     'camera_driver\MVDCP2_Setup.exe'

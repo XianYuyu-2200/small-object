@@ -1,8 +1,9 @@
-"""Dataset capture console: pick a class, press Space to save full-resolution frames."""
+"""Dataset capture console: press Space to save full-resolution frames for labelling."""
 
 from __future__ import annotations
 
 import queue
+import re
 import sys
 import threading
 import traceback
@@ -21,9 +22,8 @@ if str(SRC_ROOT) not in sys.path:
 from swallow_yolo.camera_profile import resolve_camera_profile
 from swallow_yolo.mindvision import MindVisionCamera
 
-CLASS_FILE_NAME = "capture_classes.txt"
-DEFAULT_CLASSES = [f"目标{i:02d}" for i in range(1, 16)]
 JPEG_QUALITY = 95
+IMAGE_PREFIX = "img"
 
 
 def project_root() -> Path:
@@ -46,41 +46,21 @@ def write_error_log(name: str, traceback_text: str) -> Path | None:
         return None
 
 
-def load_class_names(path: Path) -> list[str]:
-    """Read one class name per line; create a template on first run."""
-    if not path.exists():
-        path.parent.mkdir(parents=True, exist_ok=True)
-        header = (
-            "# \u6bcf\u884c\u4e00\u4e2a\u7c7b\u522b\u540d\u79f0\uff0c\u4fee\u6539\u540e\u91cd\u542f\u7a0b\u5e8f\u751f\u6548\u3002\n"
-            "# \u4ee5 # \u5f00\u5934\u7684\u884c\u548c\u7a7a\u884c\u4f1a\u88ab\u5ffd\u7565\u3002\n"
-            "# \u4f8b\uff1a\n"
-            "# \u5927\u65b9\u5757\n"
-            "# \u5c0f\u5f69\u7403\n"
-        )
-        path.write_text(header + "\n".join(DEFAULT_CLASSES) + "\n", encoding="utf-8")
-    names: list[str] = []
-    for raw in path.read_text(encoding="utf-8").splitlines():
-        line = raw.strip()
-        if not line or line.startswith("#"):
-            continue
-        names.append(line)
-    return names
-
-
-def safe_folder_name(name: str) -> str:
-    """Strip characters Windows forbids in directory names."""
-    cleaned = "".join("_" if ch in '<>:"/\\|?*' else ch for ch in name).strip(" .")
-    return cleaned or "未命名"
-
-
-def next_capture_path(folder: Path, class_name: str) -> Path:
+def next_capture_path(folder: Path) -> Path:
+    """Return the next unused img_NNNN.jpg, continuing after any existing files."""
     folder.mkdir(parents=True, exist_ok=True)
-    index = 1
-    while True:
-        candidate = folder / f"{class_name}_{index:04d}.jpg"
-        if not candidate.exists():
-            return candidate
-        index += 1
+    highest = 0
+    for path in folder.glob(f"{IMAGE_PREFIX}_*.jpg"):
+        match = re.fullmatch(rf"{IMAGE_PREFIX}_(\d+)", path.stem)
+        if match:
+            highest = max(highest, int(match.group(1)))
+    return folder / f"{IMAGE_PREFIX}_{highest + 1:04d}.jpg"
+
+
+def count_images(folder: Path) -> int:
+    if not folder.exists():
+        return 0
+    return sum(1 for path in folder.glob("*.jpg") if path.is_file())
 
 
 class CameraWorker(threading.Thread):
@@ -166,24 +146,16 @@ class DatasetCaptureApp:
         self.root.geometry("1280x780")
         self.root.minsize(1024, 640)
 
-        self.output_root = project_root() / "dataset"
-        self.class_file = project_root() / "config" / CLASS_FILE_NAME
-        self.class_names = load_class_names(self.class_file)
-        if not self.class_names:
-            self.class_names = list(DEFAULT_CLASSES)
-
-        self.counts: dict[str, int] = {}
-        self.history: list[tuple[Path, str]] = []
+        self.output_dir = project_root() / "dataset" / "images"
+        self.history: list[Path] = []
         self.events: queue.Queue = queue.Queue(maxsize=4)
         self.stop_event = threading.Event()
         self.camera_worker: CameraWorker | None = None
         self.photo = None
         self._photo_ref = None
-        self.latest_frame = None
-        self.current_class = self.class_names[0]
 
         self._build_ui()
-        self._refresh_counts()
+        self.refresh_count()
         self.root.protocol("WM_DELETE_WINDOW", self.on_close)
         self.root.bind("<space>", lambda _event: self.capture())
         self.root.bind("<Control-z>", lambda _event: self.undo())
@@ -191,7 +163,6 @@ class DatasetCaptureApp:
         self.start_camera()
         self.root.after(50, self.poll_events)
 
-    # ---------------- UI ----------------
     def _build_ui(self) -> None:
         style = ttk.Style()
         try:
@@ -199,13 +170,12 @@ class DatasetCaptureApp:
         except tk.TclError:
             pass
         style.configure("TButton", font=("Segoe UI", 11), padding=(12, 9))
-        style.configure("Capture.TButton", background=self.GREEN, foreground="#ffffff")
-        style.configure("TCheckbutton", background=self.PANEL, foreground=self.TEXT)
+        style.configure("Capture.TButton", background=self.GREEN, foreground="#ffffff", font=("Segoe UI", 14, "bold"), padding=(18, 16))
 
         body = tk.Frame(self.root, bg=self.BG)
         body.pack(fill="both", expand=True, padx=14, pady=14)
         body.grid_columnconfigure(0, weight=1)
-        body.grid_columnconfigure(1, weight=0, minsize=330)
+        body.grid_columnconfigure(1, weight=0, minsize=300)
         body.grid_rowconfigure(0, weight=1)
 
         video_frame = tk.Frame(body, bg=self.PANEL)
@@ -218,107 +188,61 @@ class DatasetCaptureApp:
         panel = tk.Frame(body, bg=self.PANEL)
         panel.grid(row=0, column=1, sticky="nsew")
 
-        tk.Label(panel, text="采集类别", font=("Segoe UI", 12, "bold"), bg=self.PANEL, fg=self.TEXT, anchor="w").pack(
-            fill="x", padx=14, pady=(14, 6)
-        )
-        list_wrap = tk.Frame(panel, bg=self.PANEL)
-        list_wrap.pack(fill="both", expand=True, padx=14)
-        scroll = tk.Scrollbar(list_wrap, orient="vertical")
-        self.class_list = tk.Listbox(
-            list_wrap,
-            yscrollcommand=scroll.set,
-            font=("Segoe UI", 11),
-            bg=self.PANEL_2,
-            fg=self.TEXT,
-            selectbackground=self.BLUE,
-            selectforeground="#ffffff",
-            activestyle="none",
-            exportselection=False,
-            highlightthickness=0,
-            borderwidth=0,
-        )
-        scroll.config(command=self.class_list.yview)
-        self.class_list.pack(side="left", fill="both", expand=True)
-        scroll.pack(side="right", fill="y")
-        self.class_list.bind("<<ListboxSelect>>", self.on_class_select)
-        for index, name in enumerate(self.class_names):
-            self.class_list.insert("end", f"  {name}")
-        self.class_list.selection_set(0)
+        self.capture_button = ttk.Button(panel, text="采集 (空格)", command=self.capture, style="Capture.TButton")
+        self.capture_button.pack(fill="x", padx=16, pady=(18, 8))
+        self.undo_button = ttk.Button(panel, text="撤销上一张 (Ctrl+Z)", command=self.undo)
+        self.undo_button.pack(fill="x", padx=16, pady=(0, 14))
 
-        buttons = tk.Frame(panel, bg=self.PANEL)
-        buttons.pack(fill="x", padx=14, pady=(12, 6))
-        buttons.grid_columnconfigure(0, weight=1)
-        buttons.grid_columnconfigure(1, weight=1)
-        self.capture_button = ttk.Button(buttons, text="采集 (空格)", command=self.capture, style="Capture.TButton")
-        self.capture_button.grid(row=0, column=0, sticky="ew", padx=(0, 6))
-        self.undo_button = ttk.Button(buttons, text="撤销上一张", command=self.undo)
-        self.undo_button.grid(row=0, column=1, sticky="ew", padx=(6, 0))
+        self.count_label = tk.Label(panel, text="", font=("Segoe UI", 20, "bold"), bg=self.PANEL, fg=self.TEXT, anchor="w")
+        self.count_label.pack(fill="x", padx=16, pady=(6, 0))
+        tk.Label(panel, text="已采集张数", font=("Segoe UI", 10), bg=self.PANEL, fg=self.MUTED, anchor="w").pack(
+            fill="x", padx=16, pady=(0, 12)
+        )
 
-        self.total_label = tk.Label(panel, text="", font=("Segoe UI", 11, "bold"), bg=self.PANEL, fg=self.TEXT, anchor="w")
-        self.total_label.pack(fill="x", padx=14, pady=(8, 0))
+        tk.Label(panel, text="保存位置", font=("Segoe UI", 11, "bold"), bg=self.PANEL, fg=self.TEXT, anchor="w").pack(
+            fill="x", padx=16, pady=(4, 2)
+        )
+        tk.Label(
+            panel,
+            text=str(self.output_dir),
+            font=("Segoe UI", 9),
+            bg=self.PANEL,
+            fg=self.MUTED,
+            anchor="w",
+            justify="left",
+            wraplength=270,
+        ).pack(fill="x", padx=16, pady=(0, 14))
 
         tk.Label(
             panel,
-            text="空格：采集    数字 1-9：快速切换类别    Ctrl+Z：撤销    Esc：退出",
+            text=(
+                "拍照建议\n"
+                "· 覆盖不同位置、角度、光照\n"
+                "· 变换远近、加入部分遮挡\n"
+                "· 也可以把多个目标放在一起拍\n"
+                "· 每个目标建议至少 150 张\n\n"
+                "快捷键\n"
+                "空格        采集\n"
+                "Ctrl+Z    撤销上一张\n"
+                "Esc          退出"
+            ),
             font=("Segoe UI", 9),
             bg=self.PANEL,
             fg=self.MUTED,
             anchor="w",
             justify="left",
-            wraplength=300,
-        ).pack(fill="x", padx=14, pady=(2, 10))
-
-        tk.Label(panel, text="保存位置", font=("Segoe UI", 11, "bold"), bg=self.PANEL, fg=self.TEXT, anchor="w").pack(
-            fill="x", padx=14, pady=(4, 2)
-        )
-        self.path_label = tk.Label(
-            panel,
-            text=str(self.output_root),
-            font=("Segoe UI", 9),
-            bg=self.PANEL,
-            fg=self.MUTED,
-            anchor="w",
-            justify="left",
-            wraplength=300,
-        )
-        self.path_label.pack(fill="x", padx=14, pady=(0, 12))
+            wraplength=270,
+        ).pack(fill="x", padx=16, pady=(0, 12))
 
         self.status = tk.Label(self.root, text="● 正在连接相机…", font=("Segoe UI", 10), bg=self.BG, fg=self.AMBER, anchor="w")
         self.status.pack(fill="x", padx=18, pady=(0, 4))
         self.action_status = tk.Label(self.root, text="", font=("Segoe UI", 10), bg=self.BG, fg=self.MUTED, anchor="w")
         self.action_status.pack(fill="x", padx=18, pady=(0, 10))
 
-        for index in range(1, 10):
-            self.root.bind(str(index), lambda _event, i=index - 1: self.select_index(i))
+    def refresh_count(self) -> None:
+        total = count_images(self.output_dir)
+        self.count_label.configure(text=str(total))
 
-    def select_index(self, index: int) -> None:
-        if 0 <= index < len(self.class_names):
-            self.class_list.selection_clear(0, "end")
-            self.class_list.selection_set(index)
-            self.class_list.see(index)
-            self.on_class_select(None)
-
-    def on_class_select(self, _event) -> None:
-        selection = self.class_list.curselection()
-        if not selection:
-            return
-        self.current_class = self.class_names[selection[0]]
-
-    def _refresh_counts(self) -> None:
-        self.counts = {}
-        for name in self.class_names:
-            folder = self.output_root / safe_folder_name(name)
-            self.counts[name] = len(list(folder.glob("*.jpg"))) if folder.exists() else 0
-        for index, name in enumerate(self.class_names):
-            self.class_list.delete(index)
-            self.class_list.insert(index, f"  {name}    {self.counts[name]} 张")
-        selection = self.class_list.curselection()
-        if selection:
-            self.class_list.selection_set(selection[0])
-        total = sum(self.counts.values())
-        self.total_label.configure(text=f"已采集合计：{total} 张")
-
-    # ---------------- camera ----------------
     def start_camera(self) -> None:
         profile = project_root() / "config" / "camera_profile.yaml"
         profile_values = {}
@@ -329,9 +253,6 @@ class DatasetCaptureApp:
         self.camera_worker = CameraWorker(self.events, self.stop_event, profile, preview_width)
         self.camera_worker.start()
 
-    def _camera_alive(self) -> bool:
-        return self.camera_worker is not None and self.camera_worker.is_alive()
-
     def poll_events(self) -> None:
         try:
             while True:
@@ -340,7 +261,7 @@ class DatasetCaptureApp:
                     self.show_frame(value)
                 elif kind == "camera_ready":
                     self.status.configure(text=f"● 相机就绪 · {value}", fg=self.GREEN)
-                    self.action_status.configure(text="选择类别后按空格采集", fg=self.MUTED)
+                    self.action_status.configure(text="按空格开始采集", fg=self.MUTED)
                 elif kind == "camera_error":
                     self.status.configure(text="● 相机启动失败", fg=self.RED)
                     self.action_status.configure(text="请查看 runs/capture_error.log", fg=self.RED)
@@ -364,34 +285,31 @@ class DatasetCaptureApp:
         rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         self.photo = tk.PhotoImage(data=cv2.imencode(".png", rgb)[1].tobytes(), format="png")
         self.video.configure(image=self.photo, text="")
-        self.latest_frame = None
 
     def snapshot(self):
         if self.camera_worker is None:
             return None
         return self.camera_worker.snapshot()
 
-    # ---------------- capture ----------------
     def capture(self) -> None:
         frame = self.snapshot()
         if frame is None:
             self.action_status.configure(text="尚未收到相机画面，请稍候", fg=self.AMBER)
             return
-        folder = self.output_root / safe_folder_name(self.current_class)
-        target = next_capture_path(folder, self.current_class)
+        target = next_capture_path(self.output_dir)
         ok, buffer = cv2.imencode(".jpg", frame, [int(cv2.IMWRITE_JPEG_QUALITY), JPEG_QUALITY])
         if not ok or not buffer.tofile(str(target)):
             self.action_status.configure(text="保存失败", fg=self.RED)
             return
-        self.history.append((target, self.current_class))
-        self._refresh_counts()
-        self.action_status.configure(text=f"已保存 {self.current_class}：{target.name}", fg=self.GREEN)
+        self.history.append(target)
+        self.refresh_count()
+        self.action_status.configure(text=f"已保存 {target.name}", fg=self.GREEN)
 
     def undo(self) -> None:
         if not self.history:
             self.action_status.configure(text="没有可撤销的采集", fg=self.MUTED)
             return
-        path, class_name = self.history.pop()
+        path = self.history.pop()
         try:
             path.unlink()
         except FileNotFoundError:
@@ -399,10 +317,8 @@ class DatasetCaptureApp:
         except OSError:
             self.action_status.configure(text=f"无法删除 {path.name}", fg=self.RED)
             return
-        self._refresh_counts()
-        index = self.class_names.index(class_name)
-        self.select_index(index)
-        self.action_status.configure(text=f"已撤销 {class_name}：{path.name}", fg=self.AMBER)
+        self.refresh_count()
+        self.action_status.configure(text=f"已撤销 {path.name}", fg=self.AMBER)
 
     def on_close(self) -> None:
         self.stop_event.set()
