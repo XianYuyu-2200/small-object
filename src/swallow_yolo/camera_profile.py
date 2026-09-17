@@ -8,6 +8,7 @@ DEFAULT_CAMERA_PROFILE = {
     "sdk_path": "mindvision",
     "camera": 0,
     "resolution_index": 0,
+    "resolution": None,
     "frame_speed_index": 2,
     "exposure_us": 90000.0,
     "gain_x": 3.0,

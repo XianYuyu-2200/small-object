@@ -1,0 +1,13 @@
+# 数据集采集专用相机配置。
+# 只影响采集工具，不会影响测量工具使用的 camera_profile.yaml。
+#
+# resolution 写成 "宽x高"，程序会在相机预设里找完全匹配的那一项。
+# 如果相机不支持该尺寸，启动时会报错并列出实际可用的分辨率列表。
+backend: mindvision
+sdk_path: "mindvision"
+camera: 0
+resolution: "2560x1440"
+frame_speed_index: 2
+exposure_us: 90000
+gain_x: 3
+preview_width: 1280

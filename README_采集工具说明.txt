@@ -42,7 +42,9 @@ Esc       退出程序
 
 六、图片保存在哪
 DatasetCapture\dataset\images\img_0001.jpg
-保存的是相机原始分辨率，JPEG 质量 95，没有缩放。
+
+当前采集分辨率：2560 x 1440，JPEG 质量 95，原始尺寸保存，没有缩放。
+按这个分辨率，每张图大约 1 MB，3000 张合计约 3 GB。
 
 程序不会按类别分文件夹：目标属于什么类别，是在打标签的时候
 由标注的人定义的，采集阶段不需要提前分类。
@@ -50,7 +52,8 @@ DatasetCapture\dataset\images\img_0001.jpg
 采集完成后，把整个 dataset 文件夹拷贝回来即可。
 
 七、注意事项
-1. 不要移动相机位置，也不要改变相机高度，否则尺寸会不一致。
+1. 分辨率、曝光、相机位置和高度，在整批采集期间都不要改，
+   否则图片尺寸或明暗会不一致，影响训练。
 2. 采集过程中保持光照稳定，避免其他人影或手进入画面。
 3. 不要删除或移动 _internal、mindvision 目录，程序依赖它们。
 4. 图片编号会接着已有文件继续，中途关掉程序再打开不会覆盖之前的图片。
@@ -61,21 +64,35 @@ DatasetCapture\dataset\images\img_0001.jpg
    - 拔插相机 USB 线，确认设备管理器里能看到相机。
    - 再重新打开本程序。
 
-2. 画面全黑或过曝
-   用记事本打开 DatasetCapture\config\camera_profile.yaml，
-   调整 exposure_us（曝光，微秒）和 gain_x（增益）后重启程序。
+2. 提示“相机不支持 2560x1440”
+   说明这台相机的预设分辨率里没有这一档。提示里会列出该相机
+   实际支持的尺寸（形如 0:5488x3672、1:2736x1836）。
+   从里面选一个接近的，填到下面的配置文件里后重启程序。
 
-3. 预览画面卡顿
-   预览帧率不影响保存质量，程序保存的始终是全分辨率原图。
+3. 画面全黑或过曝
+   修改 DatasetCapture\config\camera_profile_capture.yaml 里的
+   exposure_us（曝光，微秒）和 gain_x（增益），保存后重启程序。
 
-4. 想改相机分辨率或帧速
-   修改 camera_profile.yaml 中的 resolution_index 和 frame_speed_index。
-   注意：分辨率一旦定了，采集期间不要再改，否则图片尺寸会不一致。
+4. 预览画面卡顿
+   预览帧率不影响保存质量，程序保存的始终是完整分辨率的原图。
+
+5. 想改采集分辨率或帧速
+   用记事本打开 DatasetCapture\config\camera_profile_capture.yaml：
+
+     resolution: "2560x1440"      <- 写成“宽x高”，程序自动匹配相机预设
+     frame_speed_index: 2         <- 采集帧速档位
+
+   resolution 留空或删掉该行，则改用 camera_profile.yaml 里的
+   resolution_index 来选预设。
+
+   注意：这个文件只影响采集工具。另一个测量程序用的
+   camera_profile.yaml 不会被改动。
 
 九、目录说明
-DatasetCapture\DatasetCapture.exe      主程序
-DatasetCapture\_internal\              运行库，禁止删除或移动
-DatasetCapture\config\                 相机参数
-DatasetCapture\dataset\images\        采集的图片
-DatasetCapture\mindvision\             迈德威视 64 位运行库
-camera_driver\                         相机驱动安装组件
+DatasetCapture\DatasetCapture.exe           主程序
+DatasetCapture\_internal\                   运行库，禁止删除或移动
+DatasetCapture\config\                      相机参数
+DatasetCapture\config\camera_profile_capture.yaml   采集专用相机设置
+DatasetCapture\dataset\images\             采集的图片
+DatasetCapture\mindvision\                  迈德威视 64 位运行库
+camera_driver\                              相机驱动安装组件

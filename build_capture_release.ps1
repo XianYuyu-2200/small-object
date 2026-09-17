@@ -65,6 +65,7 @@ if (-not $SkipBuild) {
 Assert-RequiredFile (Join-Path $DistRoot 'DatasetCapture.exe')
 Assert-RequiredFile (Join-Path $DistRoot '_internal\base_library.zip')
 Assert-RequiredFile (Join-Path $DistRoot 'config\camera_profile.yaml')
+Assert-RequiredFile (Join-Path $DistRoot 'config\camera_profile_capture.yaml')
 
 # 安全检查：采集工具包里绝不能出现分析服务的密钥配置
 $leaks = @(Get-ChildItem -LiteralPath $DistRoot -Recurse -File -Filter 'vlm.yaml' -ErrorAction SilentlyContinue)
@@ -123,6 +124,7 @@ Copy-Tree -Source (Join-Path $ProjectRoot 'README_采集工具说明.txt') -Dest
 Write-Host '[5/6] 校验发布文件...'
 Assert-RequiredFile (Join-Path $AppTarget 'DatasetCapture.exe')
 Assert-RequiredFile (Join-Path $AppTarget 'config\camera_profile.yaml')
+Assert-RequiredFile (Join-Path $AppTarget 'config\camera_profile_capture.yaml')
 Assert-RequiredFile (Join-Path $AppTarget 'mindvision\Demo\Python\Basic\mvsdk.py')
 Assert-RequiredFile (Join-Path $AppTarget 'mindvision\SDK\X64\MVCAMSDK_X64.dll')
 Assert-RequiredFile (Join-Path $ReleaseRoot 'install_dataset.bat')
@@ -137,6 +139,7 @@ $manifest = @()
 foreach ($relative in @(
     'DatasetCapture\DatasetCapture.exe',
     'DatasetCapture\config\camera_profile.yaml',
+    'DatasetCapture\config\camera_profile_capture.yaml',
     'DatasetCapture\mindvision\Demo\Python\Basic\mvsdk.py',
     'DatasetCapture\mindvision\SDK\X64\MVCAMSDK_X64.dll',
     'camera_driver\MVDCP2_Setup.exe'

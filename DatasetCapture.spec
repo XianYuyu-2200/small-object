@@ -5,7 +5,10 @@ a = Analysis(
     ['scripts\\dataset_capture.py'],
     pathex=['src'],
     binaries=[],
-    datas=[('config\\camera_profile.yaml', 'config')],
+    datas=[
+        ('config\\camera_profile.yaml', 'config'),
+        ('config\\camera_profile_capture.yaml', 'config'),
+    ],
     hiddenimports=[],
     hookspath=[],
     hooksconfig={},

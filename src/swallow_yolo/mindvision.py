@@ -83,6 +83,20 @@ def resolution_by_index(capability, preset_index: int):
     raise IndexError(f"分辨率预设 {preset_index} 不存在；可用编号为 {available}")
 
 
+def resolution_by_size(capability, width: int, height: int):
+    """Find a vendor resolution preset matching an explicit pixel size."""
+    available = []
+    for position in range(capability.iImageSizeDesc):
+        preset = capability.pImageSizeDesc[position]
+        preset_width = int(preset.iWidth)
+        preset_height = int(preset.iHeight)
+        available.append(f"{int(preset.iIndex)}:{preset_width}x{preset_height}")
+        if preset_width == int(width) and preset_height == int(height):
+            return preset
+    listing = "、".join(available) if available else "无"
+    raise IndexError(f"相机不支持 {int(width)}x{int(height)}；可用分辨率为 {listing}")
+
+
 def configure_camera(mvsdk, handle: int, frame_speed_index: int | None = None, exposure_us: float | None = None, gain_x: float | None = None) -> None:
     """Apply explicit, reproducible acquisition settings."""
     if frame_speed_index is not None:
@@ -105,6 +119,7 @@ class MindVisionCamera:
         frame_speed_index: int | None = None,
         exposure_us: float | None = None,
         gain_x: float | None = None,
+        resolution: tuple[int, int] | None = None,
     ):
         self.mvsdk = load_mvsdk(sdk_root)
         devices = self.mvsdk.CameraEnumerateDevice()
@@ -115,12 +130,15 @@ class MindVisionCamera:
         self.device_name = devices[device_index].GetFriendlyName()
         self.handle = self.mvsdk.CameraInit(devices[device_index], -1, -1)
         self.capability = self.mvsdk.CameraGetCapability(self.handle)
-        if resolution_index is not None:
-            try:
+        try:
+            if resolution is not None:
+                preset = resolution_by_size(self.capability, int(resolution[0]), int(resolution[1]))
+                self.mvsdk.CameraSetImageResolution(self.handle, preset)
+            elif resolution_index is not None:
                 self.mvsdk.CameraSetImageResolution(self.handle, resolution_by_index(self.capability, resolution_index))
-            except Exception:
-                self.close()
-                raise
+        except Exception:
+            self.close()
+            raise
         self.channels = 1 if self.capability.sIspCapacity.bMonoSensor else 3
         output_format = self.mvsdk.CAMERA_MEDIA_TYPE_MONO8 if self.channels == 1 else self.mvsdk.CAMERA_MEDIA_TYPE_BGR8
         self.mvsdk.CameraSetIspOutFormat(self.handle, output_format)

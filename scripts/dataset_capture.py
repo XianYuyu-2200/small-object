@@ -57,6 +57,19 @@ def next_capture_path(folder: Path) -> Path:
     return folder / f"{IMAGE_PREFIX}_{highest + 1:04d}.jpg"
 
 
+def parse_resolution(value) -> tuple[int, int] | None:
+    """Accept "2560x1440", "2560*1440" or [2560, 1440]; None disables the override."""
+    if not value:
+        return None
+    if isinstance(value, (list, tuple)) and len(value) == 2:
+        return int(value[0]), int(value[1])
+    text = str(value).lower().replace("*", "x").replace("\u00d7", "x").strip()
+    parts = text.split("x")
+    if len(parts) != 2 or not parts[0].strip().isdigit() or not parts[1].strip().isdigit():
+        raise ValueError(f"无法解析分辨率 {value!r}，请写成 2560x1440")
+    return int(parts[0]), int(parts[1])
+
+
 def count_images(folder: Path) -> int:
     if not folder.exists():
         return 0
@@ -104,6 +117,7 @@ class CameraWorker(threading.Thread):
                 values["frame_speed_index"],
                 values["exposure_us"],
                 values["gain_x"],
+                resolution=parse_resolution(values.get("resolution")),
             )
             self.device_name = camera.device_name
             self.emit("camera_ready", self.device_name)
@@ -116,9 +130,9 @@ class CameraWorker(threading.Thread):
                 scale = min(1.0, float(self.preview_width) / max(frame.shape[:2]))
                 preview = cv2.resize(frame, None, fx=scale, fy=scale, interpolation=cv2.INTER_AREA) if scale < 1.0 else frame
                 self.emit("frame", preview)
-        except Exception:
+        except Exception as error:
             log_path = write_error_log("capture_error.log", traceback.format_exc())
-            self.emit("camera_error", str(log_path) if log_path else "")
+            self.emit("camera_error", (str(error), str(log_path) if log_path else ""))
         finally:
             if camera is not None:
                 try:
@@ -244,7 +258,9 @@ class DatasetCaptureApp:
         self.count_label.configure(text=str(total))
 
     def start_camera(self) -> None:
-        profile = project_root() / "config" / "camera_profile.yaml"
+        config_dir = project_root() / "config"
+        capture_profile = config_dir / "camera_profile_capture.yaml"
+        profile = capture_profile if capture_profile.exists() else config_dir / "camera_profile.yaml"
         profile_values = {}
         if profile.exists():
             profile_values = yaml.safe_load(profile.read_text(encoding="utf-8")) or {}
@@ -263,11 +279,12 @@ class DatasetCaptureApp:
                     self.status.configure(text=f"● 相机就绪 · {value}", fg=self.GREEN)
                     self.action_status.configure(text="按空格开始采集", fg=self.MUTED)
                 elif kind == "camera_error":
+                    message, log_path = value
                     self.status.configure(text="● 相机启动失败", fg=self.RED)
-                    self.action_status.configure(text="请查看 runs/capture_error.log", fg=self.RED)
+                    self.action_status.configure(text=message, fg=self.RED)
                     self.capture_button.configure(state="disabled")
-                    hint = f"\n\n错误日志：{value}" if value else ""
-                    messagebox.showerror("相机启动失败", "无法打开相机，请确认相机已连接且未被其他程序占用。" + hint)
+                    hint = f"\n\n错误日志：{log_path}" if log_path else ""
+                    messagebox.showerror("相机启动失败", message + hint)
                 elif kind == "camera_stopped":
                     if not self.stop_event.is_set():
                         self.status.configure(text="● 相机已停止", fg=self.MUTED)
