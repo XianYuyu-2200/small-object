@@ -43,8 +43,8 @@ Esc       退出程序
 六、图片保存在哪
 DatasetCapture\dataset\images\img_0001.jpg
 
-当前采集分辨率：2560 x 1440，JPEG 质量 95，原始尺寸保存，没有缩放。
-按这个分辨率，每张图大约 1 MB，3000 张合计约 3 GB。
+当前采集分辨率：2592 x 1944，JPEG 质量 95，原始尺寸保存，没有缩放。
+按这个分辨率，每张图大约 0.8 MB，3000 张合计约 2.5 GB。
 
 程序不会按类别分文件夹：目标属于什么类别，是在打标签的时候
 由标注的人定义的，采集阶段不需要提前分类。
@@ -64,7 +64,7 @@ DatasetCapture\dataset\images\img_0001.jpg
    - 拔插相机 USB 线，确认设备管理器里能看到相机。
    - 再重新打开本程序。
 
-2. 提示“相机不支持 2560x1440”
+2. 提示“相机不支持 2592x1944”
    说明这台相机的预设分辨率里没有这一档。提示里会列出该相机
    实际支持的尺寸（形如 0:5488x3672、1:2736x1836）。
    从里面选一个接近的，填到下面的配置文件里后重启程序。
@@ -79,7 +79,7 @@ DatasetCapture\dataset\images\img_0001.jpg
 5. 想改采集分辨率或帧速
    用记事本打开 DatasetCapture\config\camera_profile_capture.yaml：
 
-     resolution: "2560x1440"      <- 写成“宽x高”，程序自动匹配相机预设
+     resolution: "2592x1944"      <- 写成“宽x高”，程序自动匹配相机预设
      frame_speed_index: 2         <- 采集帧速档位
 
    resolution 留空或删掉该行，则改用 camera_profile.yaml 里的

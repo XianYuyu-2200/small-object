@@ -6,7 +6,7 @@
 backend: mindvision
 sdk_path: "mindvision"
 camera: 0
-resolution: "2560x1440"
+resolution: "2592x1944"
 frame_speed_index: 2
 exposure_us: 90000
 gain_x: 3
