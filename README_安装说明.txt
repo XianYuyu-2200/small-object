@@ -4,8 +4,7 @@
 一、安装前准备
 1. 使用 64 位 Windows 10 或 Windows 11。
 2. 连接迈德威视相机。
-3. 目标电脑需要能够访问外网，分析功能和系统时间均需正常可用。
-4. 请先完整解压整个压缩包，不要直接在压缩包中运行，也不要只复制其中的 EXE。
+3. 请先完整解压整个压缩包，不要直接在压缩包中运行，也不要只复制其中的 EXE。
 
 二、一键安装
 1. 打开解压后的文件夹。
@@ -15,13 +14,13 @@
 
 三、程序使用
 1. 点击“开始相机”确认画面正常。
-2. 确认实验台上没有任何目标物，点击“采集空台背景”，在提示框中选择“是”。
-3. 将目标物放在实验台中央，保持光照和相机位置不变。
-4. 点击“手动拍照”。
-5. 点击“开始分析”，等待结果显示。
+2. 将目标物放在实验台中央，保持相机位置和光照不变。
+3. 点击“手动拍照”。
+4. 点击“开始分析”，等待结果显示。
+5. 可同时放置多个目标，程序会分别给出名称、实测尺寸和吞咽等级。
 
-注意：“采集空台背景”必须在放入目标物之前完成。若跳过这一步，
-台面上的阴影和噪点会被当成目标，可能出现“只放一个物体却显示多个目标”的结果。
+当前发布版本使用本地识别，不需要联网。界面中的“采集空台背景”仅为兼容旧流程保留，
+本地识别模式不要求先采集背景，也不影响分析。
 
 四、可以直接运行的软件
 如果目标电脑已经安装好迈德威视驱动，也可以直接运行：
@@ -31,17 +30,18 @@ SwallowabilityConsole\SwallowabilityConsole.exe
 SwallowabilityConsole\SwallowabilityConsole.exe
     主程序。
 
+SwallowabilityConsole\best.pt
+    本地识别模型，禁止删除或替换为其他模型。
+
 SwallowabilityConsole\_internal\
     程序运行库，禁止删除或移动。
 
 SwallowabilityConsole\config\
-    分析服务、相机和尺寸参数，发布包内已经预置。
+    相机、识别和尺寸参数，发布包内已经预置。
+    config\inference.yaml 当前 backend 为 yolo。
 
 SwallowabilityConsole\data\calibration\
     台面尺寸标定数据，禁止删除。
-
-SwallowabilityConsole\runs\measurement\background.jpg
-    空台面背景图，禁止删除。
 
 SwallowabilityConsole\mindvision\
     程序使用的迈德威视 64 位运行库。
@@ -54,15 +54,18 @@ camera_driver\
    关闭可能占用相机的官方相机程序，拔插相机 USB 线，再重新打开软件。
 
 2. 分析失败：
-   检查目标电脑能否上网，以及系统日期和时间是否准确。
+   检查 best.pt、标定文件是否完整，并确认目标在画面中清晰可见。
 
-3. Windows 提示安全警告：
-   确认文件来自本项目后，可选择“更多信息”后继续运行。
+3. 检测不到目标或漏检：
+   可降低 config\inference.yaml 中的 confidence_threshold，例如从 0.25 调到 0.15。
 
-4. 换相机、移动相机位置或改变相机高度后：
-   原有尺寸标定和背景图可能失效，需要重新标定并重新采集空台面背景。
+4. 误检较多：
+   可提高 confidence_threshold，例如从 0.25 调到 0.35 或 0.45。
+
+5. 换相机、移动相机位置或改变相机高度后：
+   原有尺寸标定可能失效，需要重新标定。
 
 七、重要提醒
-1. 必须保留完整目录结构，尤其是 _internal、config、data、runs 和 mindvision。
-2. 发布包内含有预置的分析配置和访问密钥，请勿转发给无关人员。
+1. 必须保留完整目录结构，尤其是 _internal、best.pt、config、data 和 mindvision。
+2. 不要删除或改名 SwallowabilityConsole\best.pt。
 3. 新电脑首次安装相机驱动需要管理员权限。

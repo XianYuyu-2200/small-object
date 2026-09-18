@@ -3,3 +3,4 @@ opencv-python>=4.8
 Pillow>=10.0
 PyYAML>=6.0
 requests>=2.31
+ultralytics>=8.3

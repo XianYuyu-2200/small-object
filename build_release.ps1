@@ -66,20 +66,14 @@ if (-not $SkipBuild) {
 Assert-RequiredFile (Join-Path $DistRoot 'SwallowabilityConsole.exe')
 Assert-RequiredFile (Join-Path $DistRoot '_internal\base_library.zip')
 Assert-RequiredFile (Join-Path $DistRoot 'config\vlm.yaml')
+Assert-RequiredFile (Join-Path $DistRoot 'config\inference.yaml')
+Assert-RequiredFile (Join-Path $DistRoot 'best.pt')
 Assert-RequiredFile (Join-Path $DistRoot 'data\calibration\calibration_new.json')
 Assert-RequiredFile (Join-Path $DistRoot 'runs\measurement\background.jpg')
 
 $profileText = Get-Content -Raw -LiteralPath (Join-Path $DistRoot 'config\camera_profile.yaml')
 if ($profileText -notmatch '(?m)^sdk_path:\s*["'']?mindvision["'']?\s*$') {
     throw 'dist 中的 camera_profile.yaml 仍不是相对 SDK 路径 mindvision，已停止打包。'
-}
-
-$apiKeyLine = Get-Content -LiteralPath (Join-Path $DistRoot 'config\vlm.yaml') |
-    Where-Object { $_ -match '^\s*api_key\s*:' } |
-    Select-Object -First 1
-$apiKey = ($apiKeyLine -replace '^\s*api_key\s*:\s*', '').Trim().Trim('"').Trim("'")
-if ($apiKey.Length -lt 20) {
-    throw 'dist 中的 config/vlm.yaml 未包含可用密钥，已停止打包。'
 }
 
 Assert-RequiredFile (Join-Path $ProjectRoot 'install.ps1')
@@ -98,7 +92,7 @@ if (Test-Path -LiteralPath $ReleaseRoot) {
 New-Item -ItemType Directory -Force -Path $ReleaseRoot | Out-Null
 $AppTarget = Join-Path $ReleaseRoot 'SwallowabilityConsole'
 
-Write-Host '[2/6] 复制程序、API 配置、标定文件和背景图...'
+Write-Host '[2/6] 复制程序、模型、配置、标定文件和背景图...'
 Copy-Tree -Source $DistRoot -Destination $AppTarget
 # Do not ship previous analysis results, captures, or error logs.
 foreach ($relative in @('runs\analysis', 'runs\captures', 'runs\gui_error.log', 'runs\analysis_error.log')) {
@@ -131,6 +125,8 @@ Copy-Tree -Source (Join-Path $ProjectRoot 'README_安装说明.txt') -Destinatio
 Write-Host '[5/6] 校验发布文件和相对路径...'
 Assert-RequiredFile (Join-Path $AppTarget 'SwallowabilityConsole.exe')
 Assert-RequiredFile (Join-Path $AppTarget 'config\vlm.yaml')
+Assert-RequiredFile (Join-Path $AppTarget 'config\inference.yaml')
+Assert-RequiredFile (Join-Path $AppTarget 'best.pt')
 Assert-RequiredFile (Join-Path $AppTarget 'mindvision\Demo\Python\Basic\mvsdk.py')
 Assert-RequiredFile (Join-Path $AppTarget 'mindvision\SDK\X64\MVCAMSDK_X64.dll')
 Assert-RequiredFile (Join-Path $ReleaseRoot 'install.ps1')
@@ -146,6 +142,8 @@ $manifest = @()
 foreach ($relative in @(
     'SwallowabilityConsole\SwallowabilityConsole.exe',
     'SwallowabilityConsole\config\vlm.yaml',
+    'SwallowabilityConsole\config\inference.yaml',
+    'SwallowabilityConsole\best.pt',
     'SwallowabilityConsole\config\camera_profile.yaml',
     'SwallowabilityConsole\data\calibration\calibration_new.json',
     'SwallowabilityConsole\runs\measurement\background.jpg',

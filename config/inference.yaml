@@ -1,0 +1,30 @@
+# 当前 EXE 的识别后端。比赛版默认使用本地模型，不需要网络。
+# backend: yolo 表示本地识别；改为 vlm 才会走 config/vlm.yaml 的多模态接口。
+backend: yolo
+
+# 相对于项目根目录或 EXE 目录的模型路径。
+model_path: best.pt
+
+# 推荐先用 0.25；误检多时提高，漏检多时降低。
+confidence_threshold: 0.25
+iou_threshold: 0.50
+image_size: 1280
+device: cpu
+max_detections: 12
+min_mask_area_px: 200
+max_length_mm: 500
+
+# best.pt 内的英文类别名到界面显示名的映射。未配置的类别会直接显示原名称。
+class_names:
+  building block: 积木块
+  diamond: 钻石
+  mint candy: 薄荷糖
+  peanut: 花生
+  qingtuan: 青团
+  quail egg: 鹌鹑蛋
+  raisins: 葡萄干
+  screw cap: 瓶盖
+  soft candy: 软糖
+  soybean: 黄豆
+  steamed bread: 馒头
+  toffee: 太妃糖

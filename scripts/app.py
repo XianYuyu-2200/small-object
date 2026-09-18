@@ -20,6 +20,7 @@ from PIL import Image, ImageTk
 
 from swallow_yolo.calibration import load_calibration
 from swallow_yolo.camera_profile import resolve_camera_profile
+from swallow_yolo.local_yolo import InferenceConfigError, YoloDetector, load_inference_config
 from swallow_yolo.measurement import MeasurementError, measure_objects
 from swallow_yolo.mindvision import MindVisionCamera
 from swallow_yolo.vlm import analyze_frame, load_vlm_config
@@ -127,11 +128,21 @@ class CameraWorker(threading.Thread):
 class AnalysisWorker(threading.Thread):
     """Analyze one already-captured frame without blocking Tkinter."""
 
-    def __init__(self, events: queue.Queue, frame, config_path: Path, image_path: Path, calibration_path: Path, background_path: Path):
+    def __init__(
+        self,
+        events: queue.Queue,
+        frame,
+        inference_config_path: Path,
+        vlm_config_path: Path,
+        image_path: Path,
+        calibration_path: Path,
+        background_path: Path,
+    ):
         super().__init__(daemon=True)
         self.events = events
         self.frame = frame.copy()
-        self.config_path = config_path
+        self.inference_config_path = inference_config_path
+        self.vlm_config_path = vlm_config_path
         self.image_path = image_path
         self.calibration_path = calibration_path
         self.background_path = background_path
@@ -144,47 +155,63 @@ class AnalysisWorker(threading.Thread):
 
     def run(self) -> None:
         try:
-            self.emit("analysis_status", "正在测量目标尺寸…")
+            self.emit("analysis_status", "正在准备分析…")
+            inference_config = load_inference_config(self.inference_config_path, project_root())
             calibration = load_calibration(self.calibration_path)
-            background = cv2.imread(str(self.background_path))
-            if background is None:
-                raise MeasurementError(f"无法读取空台背景图：{self.background_path}")
-            measurements = measure_objects(self.frame, background, calibration)
-            config = load_vlm_config(self.config_path)
-            undistorted = calibration.undistort(self.frame)
-            total = len(measurements)
-            completed: dict[int, dict] = {}
-            errors: list[Exception] = []
+            objects: list[dict] = []
 
-            def analyze_one(index: int, measurement_result):
-                measurement = measurement_result.to_dict()
-                crop = crop_measurement(undistorted, measurement_result)
-                result = analyze_frame(crop, config, measurement=measurement)
-                item = result.to_dict()
-                item["object_id"] = index
-                item["measurement"] = measurement
-                return index, item
+            if inference_config.backend == "yolo":
+                if inference_config.yolo is None:
+                    raise InferenceConfigError("本地识别配置不完整")
+                self.emit("analysis_status", "正在识别目标…")
+                detector = YoloDetector(inference_config.yolo)
+                detections = detector.detect(self.frame, calibration)
+                for index, detection in enumerate(detections, start=1):
+                    item = detection.to_analysis_item()
+                    item["object_id"] = index
+                    objects.append(item)
+                self.emit("analysis_status", f"已识别 {len(objects)} 个目标…")
+            else:
+                self.emit("analysis_status", "正在测量目标尺寸…")
+                background = cv2.imread(str(self.background_path))
+                if background is None:
+                    raise MeasurementError(f"无法读取空台背景图：{self.background_path}")
+                measurements = measure_objects(self.frame, background, calibration)
+                config = load_vlm_config(self.vlm_config_path)
+                undistorted = calibration.undistort(self.frame)
+                total = len(measurements)
+                completed: dict[int, dict] = {}
+                errors: list[Exception] = []
 
-            workers = min(5, total)
-            self.emit("analysis_status", f"正在并行分析 {total} 个目标…")
-            with ThreadPoolExecutor(max_workers=workers, thread_name_prefix="object-analysis") as executor:
-                futures = {
-                    executor.submit(analyze_one, index, measurement_result): index
-                    for index, measurement_result in enumerate(measurements, start=1)
-                }
-                finished = 0
-                for future in as_completed(futures):
-                    try:
-                        index, item = future.result()
-                        completed[index] = item
-                    except Exception as error:
-                        errors.append(error)
-                    finished += 1
-                    self.emit("analysis_status", f"目标分析完成 {finished}/{total}…")
+                def analyze_one(index: int, measurement_result):
+                    measurement = measurement_result.to_dict()
+                    crop = crop_measurement(undistorted, measurement_result)
+                    result = analyze_frame(crop, config, measurement=measurement)
+                    item = result.to_dict()
+                    item["object_id"] = index
+                    item["measurement"] = measurement
+                    return index, item
 
-            if not completed:
-                raise errors[0] if errors else RuntimeError("没有完成任何目标分析")
-            objects = [completed[index] for index in sorted(completed)]
+                workers = min(5, total)
+                self.emit("analysis_status", f"正在并行分析 {total} 个目标…")
+                with ThreadPoolExecutor(max_workers=workers, thread_name_prefix="object-analysis") as executor:
+                    futures = {
+                        executor.submit(analyze_one, index, measurement_result): index
+                        for index, measurement_result in enumerate(measurements, start=1)
+                    }
+                    finished = 0
+                    for future in as_completed(futures):
+                        try:
+                            index, item = future.result()
+                            completed[index] = item
+                        except Exception as error:
+                            errors.append(error)
+                        finished += 1
+                        self.emit("analysis_status", f"目标分析完成 {finished}/{total}…")
+
+                if not completed:
+                    raise errors[0] if errors else RuntimeError("没有完成任何目标分析")
+                objects = [completed[index] for index in sorted(completed)]
 
             record = {
                 "objects": objects,
@@ -422,23 +449,31 @@ class App(tk.Tk):
             return
         self.action_status.configure(text=f"空台背景已更新：{path}", fg=self.GREEN)
         messagebox.showinfo("背景已更新", "空台背景采集完成。现在放置目标物并点击“手动拍照”。")
+
     def analyze_photo(self) -> None:
         if self._analysis_alive():
             return
         if self.captured_frame is None or self.captured_path is None:
             messagebox.showwarning("尚未拍照", "请先点击“手动拍照”。")
             return
-        config = project_root() / "config" / "vlm.yaml"
-        if not config.exists():
-            messagebox.showerror("配置不存在", "分析配置未就绪，请检查部署文件。")
+        inference_config_path = project_root() / "config" / "inference.yaml"
+        try:
+            inference_config = load_inference_config(inference_config_path, project_root())
+        except InferenceConfigError as error:
+            messagebox.showerror("配置错误", str(error))
             return
+        vlm_config = project_root() / "config" / "vlm.yaml"
+        background = project_root() / "runs" / "measurement" / "background.jpg"
+        if inference_config.backend == "vlm":
+            if not vlm_config.exists():
+                messagebox.showerror("配置不存在", "分析配置未就绪，请检查部署文件。")
+                return
+            if not background.exists():
+                messagebox.showerror("背景图不存在", "请先采集空实验台背景图。")
+                return
         calibration = project_root() / "data" / "calibration" / "calibration_new.json"
         if not calibration.exists():
             messagebox.showerror("标定不存在", "尚未完成尺寸标定。")
-            return
-        background = project_root() / "runs" / "measurement" / "background.jpg"
-        if not background.exists():
-            messagebox.showerror("背景图不存在", "请先采集空实验台背景图。")
             return
         self._clear_result("分析中…", "正在生成分析结果")
         self.action_status.configure(text="正在进行图像分析，请稍候…", fg=self.AMBER)
@@ -446,7 +481,15 @@ class App(tk.Tk):
         self.capture_button.configure(state="disabled")
         self.background_button.configure(state="disabled")
         self.analyze_button.configure(state="disabled")
-        self.analysis_worker = AnalysisWorker(self.events, self.captured_frame, config, self.captured_path, calibration, background)
+        self.analysis_worker = AnalysisWorker(
+            self.events,
+            self.captured_frame,
+            inference_config_path,
+            vlm_config,
+            self.captured_path,
+            calibration,
+            background,
+        )
         self.analysis_worker.start()
 
     def poll_events(self) -> None:
@@ -498,7 +541,7 @@ class App(tk.Tk):
                     self.status.configure(text="● 分析失败", fg=self.RED)
                     self.action_status.configure(text="分析未完成", fg=self.RED)
                     message, log_path = value
-                    hint = "\n\n请检查网络连接或稍后重试。"
+                    hint = "\n\n请检查目标是否清晰、模型与标定文件是否完整，然后重新拍照再试。"
                     if log_path:
                         hint += f"\n\n错误日志：{log_path}"
                     messagebox.showerror("分析失败", "本次分析未能完成。" + hint)
