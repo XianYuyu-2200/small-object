@@ -248,6 +248,9 @@ class App(tk.Tk):
     BORDER = "#bae6fd"
     VIDEO_BG = "#e0f2fe"
     DECISION_COLORS = {
+        "一般易卡物": "#166534",
+        "较易卡物": "#92400e",
+        "极易卡物": "#b91c1c",
         "无法吞咽": "#166534",
         "不容易吞咽": "#3f6212",
         "可能吞咽": "#92400e",
@@ -327,7 +330,7 @@ class App(tk.Tk):
         right.grid(row=0, column=1, sticky="n")
         right.pack_propagate(False)
         tk.Label(right, text="分析结果", font=("Segoe UI", 16, "bold"), bg=self.PANEL, fg=self.TEXT, anchor="w").pack(fill="x", padx=20, pady=(18, 4))
-        tk.Label(right, text="吞咽等级判定", font=("Segoe UI", 9), bg=self.PANEL, fg=self.MUTED, anchor="w").pack(fill="x", padx=20, pady=(0, 12))
+        tk.Label(right, text="易卡物等级判定", font=("Segoe UI", 9), bg=self.PANEL, fg=self.MUTED, anchor="w").pack(fill="x", padx=20, pady=(0, 12))
 
         result_box = tk.Frame(right, bg=self.PANEL_2)
         result_box.pack(fill="both", expand=True, padx=20, pady=(0, 14))
@@ -604,11 +607,11 @@ class App(tk.Tk):
             self.status.configure(text="● 未识别到目标", fg=self.MUTED)
             return
         self.decision_label.configure(text=f"检测到 {len(objects)} 个目标", fg=self.MUTED)
-        self.meta_label.configure(text="各目标按实测尺寸独立分级" if len(objects) > 1 else "")
+        self.meta_label.configure(text="各目标按识别类别独立分级" if len(objects) > 1 else "")
         for index, item in enumerate(objects, start=1):
             if not isinstance(item, dict):
                 continue
-            decision = str(item.get("decision", "可能吞咽"))
+            decision = str(item.get("decision", "一般易卡物"))
             color = self.DECISION_COLORS.get(decision, self.MUTED)
             object_name = str(item.get("object_name", "未识别")).strip() or "未识别"
             confidence = item.get("confidence")

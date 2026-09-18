@@ -1,8 +1,9 @@
 """Local YOLO backend for the desktop console.
 
-The desktop UI and deterministic size grading stay unchanged.  This module
-only replaces the remote image-understanding step with a local Ultralytics
-model.  Both detection and segmentation checkpoints are supported.
+The desktop UI stays unchanged.  This module replaces the remote
+image-understanding step with a local Ultralytics model, then maps each
+trained class to one of three fixed risk levels.  Both detection and
+segmentation checkpoints are supported.
 """
 
 from __future__ import annotations
@@ -41,9 +42,13 @@ class YoloBackendConfig:
     max_length_mm: float = 500.0
     border_margin_px: float = 8.0
     class_names: Mapping[str, str] = field(default_factory=dict)
+    class_levels: Mapping[str, str] = field(default_factory=dict)
 
     def display_name(self, raw_name: str) -> str:
         return str(self.class_names.get(raw_name, raw_name)).strip() or raw_name
+
+    def decision_name(self, raw_name: str) -> str:
+        return str(self.class_levels.get(raw_name, "一般易卡物")).strip() or "一般易卡物"
 
 
 @dataclass(frozen=True)
@@ -72,9 +77,12 @@ class YoloDetection:
     width_mm: float
     box_xyxy: tuple[float, float, float, float]
     measurement_source: str
+    decision: str | None = None
 
     def to_analysis_item(self) -> dict[str, Any]:
-        decision, effective_mm = classify_size_level(self.length_mm, self.width_mm)
+        size_decision, effective_mm = classify_size_level(self.length_mm, self.width_mm)
+        decision = self.decision or size_decision
+        reason = f"类别等级 {decision}" if self.decision else f"有效尺寸 {effective_mm:.1f} mm"
         measurement = {
             "length_mm": round(self.length_mm, 2),
             "width_mm": round(self.width_mm, 2),
@@ -86,7 +94,7 @@ class YoloDetection:
             "confidence": round(float(self.confidence), 4),
             "reasons": (
                 f"标定尺寸 {self.length_mm:.1f} × {self.width_mm:.1f} mm",
-                f"有效尺寸 {effective_mm:.1f} mm",
+                reason,
             ),
             "measurement": measurement,
             "box_xyxy": [round(float(value), 1) for value in self.box_xyxy],
@@ -173,6 +181,20 @@ def load_inference_config(path: str | Path, project_root: str | Path | None = No
         raise InferenceConfigError("class_names 必须是 YAML 对象")
     class_names = {str(key).strip(): str(value).strip() for key, value in raw_names.items() if str(key).strip()}
 
+    raw_levels = raw.get("class_levels", {})
+    if raw_levels is None:
+        raw_levels = {}
+    if not isinstance(raw_levels, Mapping):
+        raise InferenceConfigError("class_levels 必须是 YAML 对象")
+    class_levels = {str(key).strip(): str(value).strip() for key, value in raw_levels.items() if str(key).strip()}
+    allowed_levels = {"一般易卡物", "较易卡物", "极易卡物"}
+    missing_levels = sorted(set(class_names) - set(class_levels))
+    if missing_levels:
+        raise InferenceConfigError("class_levels 缺少类别：" + "、".join(missing_levels))
+    invalid_levels = sorted({key for key, value in class_levels.items() if key in class_names and value not in allowed_levels})
+    if invalid_levels:
+        raise InferenceConfigError("class_levels 包含未知等级：" + "、".join(invalid_levels))
+
     return InferenceConfig(
         backend="yolo",
         yolo=YoloBackendConfig(
@@ -186,6 +208,7 @@ def load_inference_config(path: str | Path, project_root: str | Path | None = No
             max_length_mm=_positive_number(raw.get("max_length_mm", 500.0), "max_length_mm", 1.0, 10000.0),
             border_margin_px=_positive_number(raw.get("border_margin_px", 8.0), "border_margin_px", 0.0, 500.0),
             class_names=class_names,
+            class_levels=class_levels,
         ),
     )
 
@@ -299,6 +322,7 @@ class YoloDetector:
                         width_mm=width_mm,
                         box_xyxy=box,
                         measurement_source=source,
+                        decision=self.config.decision_name(raw_name),
                     ),
                 )
             )

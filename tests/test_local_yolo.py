@@ -21,6 +21,7 @@ def test_load_yolo_inference_config_resolves_model_and_names(tmp_path):
                 'confidence_threshold': 0.3,
                 'image_size': 1280,
                 'class_names': {'raisins': '葡萄干'},
+                'class_levels': {'raisins': '极易卡物'},
             },
             allow_unicode=True,
         ),
@@ -34,6 +35,7 @@ def test_load_yolo_inference_config_resolves_model_and_names(tmp_path):
     assert config.yolo.model_path == (tmp_path / 'best.pt').resolve()
     assert config.yolo.confidence_threshold == pytest.approx(0.3)
     assert config.yolo.display_name('raisins') == '葡萄干'
+    assert config.yolo.decision_name('raisins') == '极易卡物'
 
 
 def test_load_vlm_inference_config_does_not_require_model(tmp_path):
@@ -164,7 +166,26 @@ def test_border_clipped_detection_is_rejected():
     assert _is_border_clipped((1400.0, 900.0, 2200.0, 1600.0), (3672, 5488), 8.0) is False
 
 
-def test_yolo_detection_reuses_five_level_size_decision():
+def test_yolo_detection_uses_class_decision():
+    detection = YoloDetection(
+        object_name='黄豆',
+        confidence=0.91,
+        length_mm=8.0,
+        width_mm=7.0,
+        box_xyxy=(1.0, 2.0, 9.0, 10.0),
+        measurement_source='mask',
+        decision='较易卡物',
+    )
+
+    item = detection.to_analysis_item()
+
+    assert item['object_name'] == '黄豆'
+    assert item['decision'] == '较易卡物'
+    assert item['measurement']['length_mm'] == 8.0
+    assert item['measurement_source'] == 'mask'
+
+
+def test_yolo_detection_can_fallback_to_size_decision():
     detection = YoloDetection(
         object_name='黄豆',
         confidence=0.91,
