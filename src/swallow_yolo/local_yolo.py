@@ -39,6 +39,7 @@ class YoloBackendConfig:
     max_detections: int = 20
     min_mask_area_px: float = 200.0
     max_length_mm: float = 500.0
+    border_margin_px: float = 8.0
     class_names: Mapping[str, str] = field(default_factory=dict)
 
     def display_name(self, raw_name: str) -> str:
@@ -49,6 +50,18 @@ class YoloBackendConfig:
 class InferenceConfig:
     backend: str
     yolo: YoloBackendConfig | None = None
+
+
+def no_detection_item() -> dict[str, Any]:
+    """Return the UI/JSON result used when none of the trained classes are found."""
+
+    return {
+        "object_name": "未识别到",
+        "decision": "未识别到",
+        "confidence": None,
+        "reasons": (),
+        "measurement": None,
+    }
 
 
 @dataclass(frozen=True)
@@ -83,6 +96,18 @@ class YoloDetection:
 
 _MODEL_CACHE: dict[tuple[str, int, int], Any] = {}
 _MODEL_CACHE_LOCK = threading.Lock()
+
+
+def _is_border_clipped(box: tuple[float, float, float, float], frame_shape: tuple[int, int], margin_px: float) -> bool:
+    """Reject clipped detections that are not fully inside the camera frame."""
+
+    frame_height, frame_width = frame_shape[:2]
+    return (
+        box[0] <= margin_px
+        or box[1] <= margin_px
+        or box[2] >= frame_width - 1 - margin_px
+        or box[3] >= frame_height - 1 - margin_px
+    )
 
 
 def _positive_number(value: Any, name: str, minimum: float, maximum: float) -> float:
@@ -159,6 +184,7 @@ def load_inference_config(path: str | Path, project_root: str | Path | None = No
             max_detections=_positive_integer(raw.get("max_detections", 20), "max_detections", 1, 100),
             min_mask_area_px=_positive_number(raw.get("min_mask_area_px", 200.0), "min_mask_area_px", 0.0, 10_000_000.0),
             max_length_mm=_positive_number(raw.get("max_length_mm", 500.0), "max_length_mm", 1.0, 10000.0),
+            border_margin_px=_positive_number(raw.get("border_margin_px", 8.0), "border_margin_px", 0.0, 500.0),
             class_names=class_names,
         ),
     )
@@ -226,6 +252,8 @@ class YoloDetector:
         masks = getattr(result, "masks", None)
         mask_polygons = getattr(masks, "xy", None) if masks is not None else None
         detections: list[tuple[float, YoloDetection]] = []
+        frame_height, frame_width = undistorted.shape[:2]
+        border_margin = float(self.config.border_margin_px)
 
         for index in range(len(boxes)):
             try:
@@ -236,8 +264,12 @@ class YoloDetector:
                 raise YoloDetectorError("本地模型返回的检测框格式无效") from error
             if len(box) != 4 or box[2] <= box[0] or box[3] <= box[1]:
                 continue
+            if _is_border_clipped(box, (frame_height, frame_width), border_margin):
+                continue
 
             raw_name = str(names.get(class_id, class_id))
+            if raw_name not in self.config.class_names:
+                continue
             mask_xy = None
             if mask_polygons is not None and index < len(mask_polygons):
                 candidate = np.asarray(mask_polygons[index], dtype=np.float32).reshape(-1, 2)
@@ -272,6 +304,4 @@ class YoloDetector:
             )
 
         detections.sort(key=lambda item: item[0], reverse=True)
-        if not detections:
-            raise YoloDetectorError("未检测到可测量的目标")
         return tuple(detection for _, detection in detections)

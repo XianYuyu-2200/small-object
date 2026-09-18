@@ -14,7 +14,10 @@ max_detections: 12
 min_mask_area_px: 200
 max_length_mm: 500
 
-# best.pt 内的英文类别名到界面显示名的映射。未配置的类别会直接显示原名称。
+# 过滤紧贴画面边缘、明显被裁切的异常检测框。
+border_margin_px: 8
+
+# best.pt 内的 12 个英文类别名到界面显示名的映射。其他类别结果会被忽略。
 class_names:
   building block: 积木块
   diamond: 钻石

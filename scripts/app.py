@@ -20,7 +20,7 @@ from PIL import Image, ImageTk
 
 from swallow_yolo.calibration import load_calibration
 from swallow_yolo.camera_profile import resolve_camera_profile
-from swallow_yolo.local_yolo import InferenceConfigError, YoloDetector, load_inference_config
+from swallow_yolo.local_yolo import InferenceConfigError, YoloDetector, load_inference_config, no_detection_item
 from swallow_yolo.measurement import MeasurementError, measure_objects
 from swallow_yolo.mindvision import MindVisionCamera
 from swallow_yolo.vlm import analyze_frame, load_vlm_config
@@ -166,11 +166,17 @@ class AnalysisWorker(threading.Thread):
                 self.emit("analysis_status", "正在识别目标…")
                 detector = YoloDetector(inference_config.yolo)
                 detections = detector.detect(self.frame, calibration)
-                for index, detection in enumerate(detections, start=1):
-                    item = detection.to_analysis_item()
-                    item["object_id"] = index
+                if detections:
+                    for index, detection in enumerate(detections, start=1):
+                        item = detection.to_analysis_item()
+                        item["object_id"] = index
+                        objects.append(item)
+                    self.emit("analysis_status", f"已识别 {len(objects)} 个目标…")
+                else:
+                    item = no_detection_item()
+                    item["object_id"] = 1
                     objects.append(item)
-                self.emit("analysis_status", f"已识别 {len(objects)} 个目标…")
+                    self.emit("analysis_status", "未识别到目标")
             else:
                 self.emit("analysis_status", "正在测量目标尺寸…")
                 background = cv2.imread(str(self.background_path))
@@ -578,6 +584,11 @@ class App(tk.Tk):
         if not isinstance(objects, list) or not objects:
             objects = [record]
         self._clear_result_rows()
+        if len(objects) == 1 and isinstance(objects[0], dict) and objects[0].get("object_name") == "未识别到":
+            self.decision_label.configure(text="未识别到", fg=self.MUTED)
+            self.meta_label.configure(text="")
+            self.status.configure(text="● 未识别到目标", fg=self.MUTED)
+            return
         self.decision_label.configure(text=f"检测到 {len(objects)} 个目标", fg=self.MUTED)
         self.meta_label.configure(text="各目标按实测尺寸独立分级" if len(objects) > 1 else "")
         for index, item in enumerate(objects, start=1):
