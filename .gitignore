@@ -38,3 +38,7 @@ config/vlm.yaml
 build_capture/
 dist_capture/
 dataset/
+# local YOLO datasets and generated augmentation outputs
+goodsyolov11/
+goodsyolov11_augmented/
+_augmentation_smoke/
