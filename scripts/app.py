@@ -236,26 +236,28 @@ class AnalysisWorker(threading.Thread):
 
 
 class App(tk.Tk):
-    BG = "#0f172a"
-    PANEL = "#172033"
-    PANEL_2 = "#1e293b"
-    TEXT = "#f8fafc"
-    MUTED = "#94a3b8"
-    BLUE = "#2563eb"
-    GREEN = "#16a34a"
-    RED = "#dc2626"
-    AMBER = "#f59e0b"
+    BG = "#eaf6ff"
+    PANEL = "#ffffff"
+    PANEL_2 = "#e0f2fe"
+    TEXT = "#0c4a6e"
+    MUTED = "#475569"
+    BLUE = "#0369a1"
+    GREEN = "#15803d"
+    RED = "#b91c1c"
+    AMBER = "#b45309"
+    BORDER = "#bae6fd"
+    VIDEO_BG = "#e0f2fe"
     DECISION_COLORS = {
-        "无法吞咽": "#16a34a",
-        "不容易吞咽": "#4d7c0f",
-        "可能吞咽": "#b45309",
+        "无法吞咽": "#166534",
+        "不容易吞咽": "#3f6212",
+        "可能吞咽": "#92400e",
         "容易吞咽": "#c2410c",
         "极易吞咽": "#991b1b",
     }
 
     def __init__(self):
         super().__init__()
-        self.title("小物件吞咽识别控制台")
+        self.title("婴幼儿易卡物识别控制台")
         self.geometry("1500x920")
         self.minsize(1120, 820)
         self.configure(bg=self.BG)
@@ -276,16 +278,28 @@ class App(tk.Tk):
         style = ttk.Style(self)
         style.theme_use("clam")
         style.configure("TButton", font=("Segoe UI", 11), padding=(14, 10), background=self.PANEL_2, foreground=self.TEXT)
-        style.map("TButton", background=[("active", "#334155")], foreground=[("disabled", "#64748b")])
+        style.map(
+            "TButton",
+            background=[("active", "#bae6fd"), ("disabled", "#e2e8f0")],
+            foreground=[("active", self.TEXT), ("disabled", "#94a3b8")],
+        )
         style.configure("Accent.TButton", background=self.BLUE, foreground="#ffffff")
-        style.map("Accent.TButton", background=[("active", "#1d4ed8"), ("disabled", "#334155")])
+        style.map(
+            "Accent.TButton",
+            background=[("active", "#075985"), ("disabled", "#bae6fd")],
+            foreground=[("disabled", "#64748b")],
+        )
         style.configure("Capture.TButton", background=self.GREEN, foreground="#ffffff")
-        style.map("Capture.TButton", background=[("active", "#15803d"), ("disabled", "#334155")])
+        style.map(
+            "Capture.TButton",
+            background=[("active", "#166534"), ("disabled", "#d1fae5")],
+            foreground=[("disabled", "#64748b")],
+        )
 
     def _build_ui(self) -> None:
         header = tk.Frame(self, bg=self.BG)
         header.pack(fill="x", padx=28, pady=(22, 14))
-        tk.Label(header, text="小物件吞咽识别", font=("Segoe UI", 25, "bold"), bg=self.BG, fg=self.TEXT).pack(side="left")
+        tk.Label(header, text="婴幼儿易卡物识别", font=("Segoe UI", 25, "bold"), bg=self.BG, fg=self.TEXT).pack(side="left")
         tk.Label(header, text="手动拍照 · 图像分析", font=("Segoe UI", 11), bg=self.BG, fg=self.MUTED).pack(side="left", padx=18, pady=(8, 0))
         self.status = tk.Label(header, text="● 相机未启动", font=("Segoe UI", 12, "bold"), bg=self.BG, fg=self.MUTED)
         self.status.pack(side="right", pady=(8, 0))
@@ -296,10 +310,10 @@ class App(tk.Tk):
         body.grid_columnconfigure(1, weight=0, minsize=560)
         body.grid_rowconfigure(0, weight=1)
 
-        left = tk.Frame(body, bg=self.PANEL, highlightthickness=1, highlightbackground="#334155")
+        left = tk.Frame(body, bg=self.PANEL, highlightthickness=1, highlightbackground=self.BORDER)
         left.grid(row=0, column=0, sticky="nsew", padx=(0, 14))
         tk.Label(left, text="实时相机画面", font=("Segoe UI", 14, "bold"), bg=self.PANEL, fg=self.TEXT, anchor="w").pack(fill="x", padx=20, pady=(18, 10))
-        self.video = tk.Label(left, text="点击“开始相机”连接迈德威视相机", font=("Segoe UI", 16), bg="#020617", fg=self.MUTED)
+        self.video = tk.Label(left, text="点击“开始相机”连接迈德威视相机", font=("Segoe UI", 16), bg=self.VIDEO_BG, fg=self.MUTED)
         self.video.pack(fill="both", expand=True, padx=20, pady=(0, 20))
 
         right = tk.Frame(
@@ -308,11 +322,11 @@ class App(tk.Tk):
             height=720,
             bg=self.PANEL,
             highlightthickness=1,
-            highlightbackground="#334155",
+            highlightbackground=self.BORDER,
         )
         right.grid(row=0, column=1, sticky="n")
         right.pack_propagate(False)
-        tk.Label(right, text="分析结果", font=("Segoe UI", 14, "bold"), bg=self.PANEL, fg=self.TEXT, anchor="w").pack(fill="x", padx=20, pady=(18, 4))
+        tk.Label(right, text="分析结果", font=("Segoe UI", 16, "bold"), bg=self.PANEL, fg=self.TEXT, anchor="w").pack(fill="x", padx=20, pady=(18, 4))
         tk.Label(right, text="吞咽等级判定", font=("Segoe UI", 9), bg=self.PANEL, fg=self.MUTED, anchor="w").pack(fill="x", padx=20, pady=(0, 12))
 
         result_box = tk.Frame(right, bg=self.PANEL_2)
@@ -324,7 +338,7 @@ class App(tk.Tk):
         self.result_rows = tk.Frame(result_box, bg=self.PANEL_2)
         self.result_rows.pack(fill="both", expand=True, padx=16, pady=(0, 10))
 
-        controls = tk.Frame(right, bg=self.PANEL, highlightthickness=1, highlightbackground="#334155")
+        controls = tk.Frame(right, bg=self.PANEL, highlightthickness=1, highlightbackground=self.BORDER)
         controls.pack(fill="x", padx=20, pady=(0, 20))
         tk.Label(controls, text="操作", font=("Segoe UI", 11, "bold"), bg=self.PANEL, fg=self.TEXT, anchor="w").pack(fill="x", padx=14, pady=(12, 8))
 
